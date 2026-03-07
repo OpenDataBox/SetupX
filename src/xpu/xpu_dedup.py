@@ -12,18 +12,18 @@
 """
 
 import json
-import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
-from xpu.extract_xpu_from_trajs_mvp import (
+from .extract_xpu_from_trajs_mvp import (
     openai_compatible_chat_completions,
     parse_llm_json,
     load_llm_config_from_env,
     get_env_or_raise,
 )
+from ..logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("xpu.dedup")
 
 MERGE_SIMILARITY_THRESHOLD = 0.85
 
@@ -215,7 +215,7 @@ def dedup_and_store(
         {"action": str, "xpu_id": str, "reason": str}
         action ∈ {"new", "different_inserted", "merged", "duplicate"}
     """
-    from xpu.xpu_adapter import XpuContext
+    from .xpu_adapter import XpuContext
 
     ctx_lang = (
         entry.context.get("lang", "python")

@@ -5,6 +5,7 @@
 """
 
 import logging
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -24,11 +25,19 @@ class LoggerSetup:
             return logging.getLogger("setup_agent")
 
         config = get_config()
-        log_dir = config.log_dir
+        env_log_file = os.getenv("LOG_FILE")
+        env_log_dir = os.getenv("LOG_DIR")
+        env_prefix = os.getenv("LOG_FILE_PREFIX", "").strip()
+
+        log_dir = Path(env_log_dir) if env_log_dir else config.log_dir
 
         # 创建日志文件名
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        log_file = log_dir / f"{timestamp}.log"
+        if env_log_file:
+            log_file = Path(env_log_file)
+        else:
+            prefix = f"{env_prefix}_" if env_prefix else ""
+            log_file = log_dir / f"{prefix}{timestamp}.log"
 
         # 创建根 logger
         logger = logging.getLogger("setup_agent")

@@ -15,10 +15,12 @@ from .models import (
     CommandResult,
     AttributionReport,
     XPUSuggestion,
+    SetupResult,
 )
 from .environment_manager import EnvironmentManager
 from .xpu_client import create_xpu_client, XPUClientBase
 from .llm_engine import LLMEngine
+from .verifier_agent import VerifierAgent
 
 logger = get_logger("agent")
 
@@ -46,8 +48,17 @@ class SpeculativeSetupAgent:
 
         logger.info(f"Agent 初始化完成，目标仓库: {repo_url}")
 
-    def run(self) -> str:
-        """运行 Agent 主循环（按 blueprint 2 节实现）"""
+    @property
+    def env(self) -> EnvironmentManager:
+        """暴露环境管理器，供验证阶段复用同一容器"""
+        return self._env
+
+    def run(self) -> SetupResult:
+        """运行 Agent 主循环（按 blueprint 2 节实现）
+
+        返回 SetupResult，容器保留供后续验证阶段使用。
+        调用方负责在验证完成后调用 env.destroy() 销毁容器。
+        """
         logger.info("开始执行环境配置任务")
 
         # 1. 初始化：创建容器并克隆仓库
@@ -96,19 +107,31 @@ class SpeculativeSetupAgent:
             elif action.action_type == ActionType.ROLLBACK_ENV:
                 self._handle_rollback_env(action)
 
+            elif action.action_type == ActionType.VERIFY:
+                verified = self._handle_verify(action)
+                if verified:
+                    break  # 验证通过，退出主循环
+
             elif action.action_type == ActionType.FINISH:
                 self._handle_finish(action)
                 break
 
-        # 清理资源
-        self._cleanup()
+        # 关闭 LLM 和 XPU 连接，但保留容器
+        self._close_clients()
+        # 清理快照镜像释放磁盘，验证阶段不需要回滚
+        self._env.cleanup_snapshots()
 
-        if self._state.completed:
-            logger.info(f"任务完成: {self._state.final_message}")
-            return self._state.final_message or "任务完成"
-        else:
+        if not self._state.completed:
             logger.warning("达到最大迭代次数，任务未完成")
-            return f"达到最大迭代次数 ({self._state.max_steps})，任务未完成"
+
+        return SetupResult(
+            repo_url=self._state.repo_url,
+            container_id=container_id,
+            completed=self._state.completed,
+            steps_taken=self._state.step,
+            final_message=self._state.final_message or "达到最大迭代次数，任务未完成",
+            history=self._state.history,
+        )
 
     def _handle_shell_command(self, action: AgentAction) -> None:
         """处理 SHELL_COMMAND 动作"""
@@ -145,6 +168,14 @@ class SpeculativeSetupAgent:
 
         if not suggestion:
             logger.warning(f"未找到 XPU 建议: {action.xpu_suggestion_id}")
+            self._state.add_to_history({
+                "action": action.to_dict(),
+                "result": {
+                    "exit_code": 1,
+                    "stdout": f"[XPU BLOCKED] 建议 {action.xpu_suggestion_id} 不存在或已被禁用，请改用 SHELL_COMMAND",
+                    "stderr": "",
+                },
+            })
             return
 
         # 记录执行前的错误
@@ -156,6 +187,19 @@ class SpeculativeSetupAgent:
         logger.info(f"创建快照 {ckpt_tag}，开始推测执行 XPU 建议")
 
         # B. 试错 (Trial)
+        if not suggestion.commands:
+            logger.warning(f"XPU 建议 {suggestion.id} 的 commands 为空，跳过执行")
+            self._state.record_failed_suggestion(suggestion.id)
+            self._state.add_to_history({
+                "action": action.to_dict(),
+                "result": {
+                    "exit_code": 1,
+                    "stdout": f"[XPU SKIP] {suggestion.id}：commands 为空，未执行",
+                    "stderr": "",
+                },
+            })
+            return
+
         success = True
         logs: list[CommandResult] = []
         for cmd in suggestion.commands:
@@ -198,20 +242,25 @@ class SpeculativeSetupAgent:
         if not success:
             logger.info(f"XPU 建议 {suggestion.id} 执行失败，回滚中...")
             self._env.rollback_to_checkpoint()
-            # 记录失败，防止 LLM 重试
-            self._state.record_failed_suggestion(suggestion.id)
             self._state.last_error = error_before  # 恢复原错误
         else:
             logger.info(f"XPU 建议 {suggestion.id} 验证通过")
             self._state.last_error = None
+        # 无论成功失败，都标记为"已尝试"，防止 LLM 对同一条建议无限循环
+        self._state.record_failed_suggestion(suggestion.id)
 
-        # 记录历史
+        # 记录历史：必须含 "result" key，否则 llm_engine 不会生成 user 观察消息
+        cmd_outputs = "\n".join(
+            f"$ {log.get('command', '')}\n{(log.get('stdout') or log.get('stderr') or '')[:300]}"
+            for log in [l.to_dict() for l in logs[:3]]
+        )
         self._state.add_to_history({
             "action": action.to_dict(),
-            "xpu_suggestion": suggestion.to_dict(),
-            "outcome": outcome,
-            "attribution_score": attribution_score,
-            "logs": [log.to_dict() for log in logs],
+            "result": {
+                "exit_code": 0 if success else 1,
+                "stdout": f"[XPU {outcome}] {suggestion.id}\n{cmd_outputs}",
+                "stderr": "",
+            },
         })
 
     def _handle_set_env(self, action: AgentAction) -> None:
@@ -225,6 +274,11 @@ class SpeculativeSetupAgent:
 
         self._state.add_to_history({
             "action": action.to_dict(),
+            "result": {
+                "exit_code": 0,
+                "stdout": f"[SET_ENV] {action.env_key}={action.env_value}",
+                "stderr": "",
+            },
         })
 
     def _handle_rollback_env(self, action: AgentAction) -> None:
@@ -234,8 +288,61 @@ class SpeculativeSetupAgent:
         logger.info(f"[ROLLBACK_ENV] 回滚 {status}")
         self._state.add_to_history({
             "action": action.to_dict(),
-            "rollback_status": status,
+            "result": {
+                "exit_code": 0 if success else 1,
+                "stdout": f"[ROLLBACK_ENV] {status}",
+                "stderr": "",
+            },
         })
+
+    def _handle_verify(self, action: AgentAction) -> bool:
+        """处理 VERIFY 动作：调用 VerifierAgent 运行 pytest，把结果反馈给 LLM。
+
+        返回 True 表示验证通过（调用方应退出主循环），
+        返回 False 表示验证失败（调用方继续循环，让 LLM 根据 pytest 输出继续修复）。
+        """
+        logger.info("[VERIFY] 开始 pytest 验证")
+        verifier = VerifierAgent(self._env)
+        result = verifier.verify()
+
+        logger.info(
+            f"[VERIFY] 结果: success={result.success}, "
+            f"framework={result.test_framework}, "
+            f"collected={result.collect_count}, exit_code={result.exit_code}"
+        )
+
+        # 组织反馈，无论成功失败都写入历史供 LLM 参考
+        verify_summary = (
+            f"验证框架: {result.test_framework}\n"
+            f"收集测试数: {result.collect_count}\n"
+            f"退出码: {result.exit_code}\n"
+            f"输出:\n{result.stdout}\n"
+            f"错误:\n{result.stderr}"
+        )
+
+        self._state.add_to_history({
+            "action": action.to_dict(),
+            "result": {
+                "exit_code": result.exit_code,
+                "stdout": (
+                    f"[VERIFY] success={result.success}, framework={result.test_framework}, "
+                    f"collected={result.collect_count}\n{result.stdout or ''}"
+                )[:1000],
+                "stderr": (result.stderr or "")[:500],
+            },
+        })
+
+        if result.success:
+            logger.info("[VERIFY] 验证通过，自动标记任务完成")
+            self._state.completed = True
+            self._state.final_message = f"pytest 验证通过，{result.collect_count} 个测试用例"
+            self._state.last_error = None
+            self._store_experience_if_applicable()
+            return True
+        else:
+            logger.warning("[VERIFY] 验证失败，将 pytest 输出反馈给 LLM 继续修复")
+            self._state.last_error = verify_summary
+            return False
 
     def _handle_finish(self, action: AgentAction) -> None:
         """处理 FINISH 动作"""
@@ -244,6 +351,11 @@ class SpeculativeSetupAgent:
 
         self._state.add_to_history({
             "action": action.to_dict(),
+            "result": {
+                "exit_code": 0,
+                "stdout": f"[FINISH] {self._state.final_message}",
+                "stderr": "",
+            },
         })
 
         # 任务成功后尝试存储经验到向量数据库
@@ -263,13 +375,7 @@ class SpeculativeSetupAgent:
             import json
             import shutil
             import tempfile
-            import sys
-            import os
             from pathlib import Path
-
-            _src_dir = os.path.dirname(os.path.abspath(__file__))
-            if _src_dir not in sys.path:
-                sys.path.insert(0, _src_dir)
 
             # Step 1: 将 agent history 转换为 Repo2Run 兼容的轨迹 JSONL 格式
             traj = []
@@ -316,7 +422,7 @@ class SpeculativeSetupAgent:
 
                 # Step 3: LLM 提取（复用 extract_xpu_from_trajs_mvp）
                 extracted_file = tmp_dir / "extracted.jsonl"
-                from xpu.extract_xpu_from_trajs_mvp import extract_xpu_from_trajs
+                from .xpu.extract_xpu_from_trajs_mvp import extract_xpu_from_trajs
                 extract_xpu_from_trajs(jsonl_path, extracted_file)
 
                 # Step 4: 收集所有有效经验（一条轨迹可能提炼出多条 XPU）
@@ -337,9 +443,9 @@ class SpeculativeSetupAgent:
                 logger.info(f"[XPU Store] LLM 提取出 {len(xpu_objects)} 条经验，逐条入库")
 
                 # Step 5 & 6: 逐条构建 XpuEntry 并去重入库
-                from xpu.xpu_adapter import XpuEntry, XpuAtom
-                from xpu.xpu_vector_store import build_xpu_text, text_to_embedding
-                from xpu.xpu_dedup import dedup_and_store
+                from .xpu.xpu_adapter import XpuEntry, XpuAtom
+                from .xpu.xpu_vector_store import build_xpu_text, text_to_embedding
+                from .xpu.xpu_dedup import dedup_and_store
 
                 for i, xpu_obj in enumerate(xpu_objects):
                     atoms = [XpuAtom(name=a.get("name", ""), args=a.get("args", {}))
@@ -363,20 +469,17 @@ class SpeculativeSetupAgent:
         except Exception as e:
             logger.warning(f"[XPU Store] 经验存储失败（不影响任务结果）: {e}")
 
-    def _cleanup(self) -> None:
-        """清理资源"""
-        logger.info("清理 Agent 资源...")
-        self._env.cleanup()
+    def _close_clients(self) -> None:
+        """关闭 LLM 和 XPU 连接（不销毁容器）"""
+        logger.info("关闭 LLM/XPU 连接...")
         self._llm.close()
-
         if hasattr(self._xpu, "close"):
             self._xpu.close()
-
-        logger.info("资源清理完成")
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self._cleanup()
+        self._close_clients()
+        self._env.cleanup()
         return False

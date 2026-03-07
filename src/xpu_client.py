@@ -4,8 +4,6 @@ XPU 知识接口（按 blueprint 1.2 节定义）
 """
 
 import json
-import sys
-import os
 import uuid
 from abc import ABC, abstractmethod
 from typing import Any
@@ -15,11 +13,6 @@ import httpx
 from .config import get_config
 from .logger import get_logger
 from .models import XPUSuggestion, AttributionReport
-
-# 将 src/ 加入 sys.path，使 xpu 包可被 import
-_src_dir = os.path.dirname(os.path.abspath(__file__))
-if _src_dir not in sys.path:
-    sys.path.insert(0, _src_dir)
 
 logger = get_logger("xpu")
 
@@ -301,15 +294,20 @@ class VectorXPUClient(XPUClientBase):
     """基于 PostgreSQL 向量数据库的 XPU 客户端（复用 xpu_standalone）"""
 
     def __init__(self, dns: str):
-        from xpu.xpu_vector_store import XpuVectorStore, text_to_embedding, build_xpu_text
+        from .xpu.xpu_vector_store import XpuVectorStore, text_to_embedding, build_xpu_text
+        from .xpu.xpu_adapter import XpuAtom, render_atom_to_commands
         self._store = XpuVectorStore(connection_string=dns)
         self._text_to_embedding = text_to_embedding
         self._build_xpu_text = build_xpu_text
+        self._render_atom_to_commands = render_atom_to_commands
         self._id_to_raw: dict[str, dict] = {}  # suggestion_id → raw search result
         logger.info(f"VectorXPUClient 初始化完成（连接: {dns.split('@')[-1] if '@' in dns else '...'}）")
 
     def query(self, context: dict[str, Any]) -> list[XPUSuggestion]:
         """向量相似度检索 XPU 经验"""
+        # 补充导入，解决作用域问题
+        from .xpu.xpu_adapter import XpuAtom
+
         error_text = context.get("error", "") or context.get("error_log", "")
         if not error_text:
             return []
@@ -330,12 +328,11 @@ class VectorXPUClient(XPUClientBase):
             atoms = res.get("atoms") or []
             similarity = float(res.get("similarity", 0.5))
 
-            # atoms → commands：提取 args 中含 "cmd" 的原子
-            commands = [
-                a["args"]["cmd"]
-                for a in atoms
-                if isinstance(a.get("args"), dict) and "cmd" in a["args"]
-            ]
+            # atoms → commands：通过 render_atom_to_commands 转换为 bash 命令
+            commands = []
+            for a in atoms:
+                atom = XpuAtom(name=a.get("name", ""), args=a.get("args", {}))
+                commands.extend(self._render_atom_to_commands(atom))
 
             suggestion = XPUSuggestion(
                 id=xpu_id,
@@ -386,6 +383,9 @@ def create_xpu_client() -> XPUClientBase:
     """创建 XPU 客户端实例"""
     config = get_config().xpu
 
+    if config.disabled:
+        logger.info("XPU 已禁用，使用 NoopXPU 客户端")
+        return NoopXPUClient()
     if config.vector_enabled and config.db_dns:
         logger.info("使用 VectorXPU 客户端（PostgreSQL 向量数据库）")
         return VectorXPUClient(config.db_dns)
@@ -395,3 +395,13 @@ def create_xpu_client() -> XPUClientBase:
     else:
         logger.info("使用 Mock XPU 客户端")
         return MockXPUClient()
+
+
+class NoopXPUClient(XPUClientBase):
+    """完全禁用的 XPU 客户端：不提供建议，不回传反馈。"""
+
+    def query(self, context: dict[str, Any]) -> list[XPUSuggestion]:
+        return []
+
+    def submit_feedback(self, report: AttributionReport) -> None:
+        return None
