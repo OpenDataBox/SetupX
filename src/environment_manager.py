@@ -39,6 +39,30 @@ class EnvironmentManager:
         # 使用栈结构存储快照（按 blueprint 要求）
         self._history_snapshots: list[str] = []
 
+    @classmethod
+    def from_container(cls, container_id: str, work_dir: str = "/workspace") -> "EnvironmentManager":
+        """连接到已有的 Docker 容器（不创建新容器）。
+
+        用于 Verifier 独立验证外部工具（OpenHands、Repo2Run 等）产出的容器，
+        与 Setup Agent 完全解耦。
+
+        Args:
+            container_id: 目标容器 ID 或名称
+            work_dir: 容器内项目根目录（默认 /workspace，Repo2Run 用 /repo）
+        """
+        instance = cls.__new__(cls)
+        instance._client = docker.from_env()
+        instance._container = instance._client.containers.get(container_id)
+        instance._config = get_config().docker
+        instance._env_vars = {}
+        instance._history_snapshots = []
+
+        # 覆盖工作目录，适配不同工具的约定路径
+        instance._config.work_dir = work_dir
+
+        logger.info(f"已连接到已有容器: {container_id[:12]}，工作目录: {work_dir}")
+        return instance
+
     @property
     def container(self) -> Container:
         """获取当前容器，不存在时抛出异常"""
