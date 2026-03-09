@@ -96,6 +96,10 @@ class OpenAICompatibleClient(LLMClientBase):
         content = msg.get("content")
         if not content:
             content = msg.get("reasoning_content", "")
+        # 剥离 <think>...</think> 标签（qwen 等推理模型会在 content 中包含思考过程）
+        if content and "<think>" in content:
+            import re as _re
+            content = _re.sub(r"<think>.*?</think>\s*", "", content, flags=_re.DOTALL)
         return content
 
     def close(self) -> None:

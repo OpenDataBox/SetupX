@@ -7,7 +7,7 @@ import docker
 from docker.models.containers import Container
 from docker.errors import DockerException, ImageNotFound
 
-from .config import get_config
+from .config import get_config, DockerConfig
 from .logger import get_logger
 from .models import CommandResult
 
@@ -38,6 +38,27 @@ class EnvironmentManager:
         self._env_vars: dict[str, str] = {}
         # 使用栈结构存储快照（按 blueprint 要求）
         self._history_snapshots: list[str] = []
+        # create_container() 会克隆仓库到 {work_dir}/repo，exec_run 默认追加 /repo
+        # from_dockerfile()/from_container() 仓库直接在 work_dir 下，不追加
+        self._repo_subdir = True
+
+    @classmethod
+    def _create_with_work_dir(cls, work_dir: str) -> "EnvironmentManager":
+        """内部工厂：创建实例并覆盖工作目录（绕过 frozen dataclass）"""
+        instance = cls.__new__(cls)
+        instance._client = docker.from_env()
+        instance._container = None
+        instance._env_vars = {}
+        instance._history_snapshots = []
+        instance._repo_subdir = False  # 外部容器/Dockerfile 不追加 /repo
+        # 用自定义 work_dir 构造新的 DockerConfig，避免修改 frozen 实例
+        orig = get_config().docker
+        instance._config = DockerConfig(
+            base_image=orig.base_image,
+            work_dir=work_dir,
+            timeout=orig.timeout,
+        )
+        return instance
 
     @classmethod
     def from_container(cls, container_id: str, work_dir: str = "/workspace") -> "EnvironmentManager":
@@ -50,17 +71,42 @@ class EnvironmentManager:
             container_id: 目标容器 ID 或名称
             work_dir: 容器内项目根目录（默认 /workspace，Repo2Run 用 /repo）
         """
-        instance = cls.__new__(cls)
-        instance._client = docker.from_env()
+        instance = cls._create_with_work_dir(work_dir)
         instance._container = instance._client.containers.get(container_id)
-        instance._config = get_config().docker
-        instance._env_vars = {}
-        instance._history_snapshots = []
-
-        # 覆盖工作目录，适配不同工具的约定路径
-        instance._config.work_dir = work_dir
-
         logger.info(f"已连接到已有容器: {container_id[:12]}，工作目录: {work_dir}")
+        return instance
+
+    @classmethod
+    def from_dockerfile(cls, dockerfile_dir: str, work_dir: str = "/repo") -> "EnvironmentManager":
+        """从 Dockerfile 构建镜像、启动容器并连接。
+
+        用于验证 Repo2Run 等工具产出的 Dockerfile。
+
+        Args:
+            dockerfile_dir: 包含 Dockerfile 的目录路径
+            work_dir: 容器内项目根目录（Repo2Run 默认 /repo）
+        """
+        instance = cls._create_with_work_dir(work_dir)
+        logger.info(f"从 Dockerfile 构建镜像: {dockerfile_dir}")
+        image, build_logs = instance._client.images.build(
+            path=dockerfile_dir,
+            rm=True,
+            network_mode="host",
+        )
+        for chunk in build_logs:
+            if "stream" in chunk:
+                line = chunk["stream"].strip()
+                if line:
+                    logger.debug(f"[build] {line}")
+        logger.info(f"镜像构建完成: {image.id[:12]}")
+
+        instance._container = instance._client.containers.run(
+            image.id,
+            command="sleep infinity",
+            detach=True,
+            network_mode="host",
+        )
+        logger.info(f"容器已启动: {instance._container.id[:12]}，工作目录: {work_dir}")
         return instance
 
     @property
@@ -164,7 +210,10 @@ class EnvironmentManager:
 
         # 确定工作目录
         if work_dir is None:
-            work_dir = f"{self._config.work_dir}/repo"
+            if self._repo_subdir:
+                work_dir = f"{self._config.work_dir}/repo"
+            else:
+                work_dir = self._config.work_dir
 
         # 构造执行命令
         if work_dir == "/":

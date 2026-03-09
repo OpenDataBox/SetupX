@@ -206,9 +206,14 @@ class VerifierAgent:
     def _parse_json(raw: str) -> dict:
         """宽松解析 LLM 输出中的 JSON"""
         raw = raw.strip()
+        # 剥离 <think>...</think>
+        if "<think>" in raw:
+            raw = re.sub(r"<think>.*?</think>\s*", "", raw, flags=re.DOTALL).strip()
         # 1. 直接解析
         try:
-            return json.loads(raw)
+            result = json.loads(raw)
+            if isinstance(result, dict):
+                return result
         except json.JSONDecodeError:
             pass
         # 2. 提取 ```json ... ```
