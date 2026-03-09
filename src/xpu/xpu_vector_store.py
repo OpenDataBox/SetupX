@@ -1,7 +1,6 @@
-"""Vector store for XPU entries using PostgreSQL with pgvector extension."""
+"""XPU 向量数据库存储层，基于 PostgreSQL + pgvector 扩展。"""
 
 import json
-import logging
 import os
 from typing import Any, Dict, List, Optional
 
@@ -10,92 +9,91 @@ import psycopg2
 from psycopg2.extras import execute_values
 from psycopg2.pool import ThreadedConnectionPool
 
-from xpu.xpu_adapter import XpuEntry, XpuContext
+from .xpu_adapter import XpuEntry, XpuContext
+from ..logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("xpu.vector_store")
 
-# Embedding dimension (can be overridden by EMBEDDING_DIM env var)
+# Embedding 维度（可通过环境变量 EMBEDDING_DIM 覆盖）
 EMBEDDING_DIM = int(os.environ.get("EMBEDDING_DIM", "1536"))
 
 
-
-
 def get_db_connection_string() -> str:
-    """Get database connection string from environment."""
+    """从环境变量获取数据库连接串。"""
     dns = os.environ.get("dns")
     if not dns:
-        raise RuntimeError("Missing required environment variable: dns (PostgreSQL connection string)")
+        raise RuntimeError("缺少必需的环境变量: dns（PostgreSQL 连接串）")
     return dns
 
 
 def create_xpu_table(conn) -> None:
-    """Create XPU table with vector column if not exists."""
+    """创建 XPU 表和向量索引（如不存在）。"""
     with conn.cursor() as cur:
-        # Enable pgvector extension
+        # 启用 pgvector 扩展
         cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-        
-        # Create table
-        cur.execute("""
+
+        # 创建表
+        cur.execute(f"""
             CREATE TABLE IF NOT EXISTS xpu_entries (
                 id TEXT PRIMARY KEY,
                 context JSONB NOT NULL,
                 signals JSONB NOT NULL,
                 advice_nl JSONB NOT NULL,
                 atoms JSONB NOT NULL,
-                embedding vector(%s) NOT NULL,
+                embedding vector({EMBEDDING_DIM}) NOT NULL,
+                telemetry JSONB DEFAULT '{{}}'::jsonb,
                 created_at TIMESTAMP DEFAULT NOW()
             );
-        """ % EMBEDDING_DIM)
-        
-        # Create index for vector similarity search
+        """)
+
+        # 创建向量相似度搜索索引
         cur.execute("""
-            CREATE INDEX IF NOT EXISTS xpu_entries_embedding_idx 
-            ON xpu_entries 
+            CREATE INDEX IF NOT EXISTS xpu_entries_embedding_idx
+            ON xpu_entries
             USING ivfflat (embedding vector_cosine_ops)
             WITH (lists = 100);
         """)
-        
+
         conn.commit()
-        logger.info("XPU table and index created/verified")
+        logger.info("XPU 表和索引已创建/验证")
 
 
 def text_to_embedding(text: str, model: str = None) -> List[float]:
-    """Generate embedding for text using OpenAI-compatible API.
-    
-    Configuration priority:
-    1. EMBEDDING_API_KEY + EMBEDDING_BASE_URL (if set) - dedicated embedding service
-    2. OPENAI_API_KEY + OPENAI_BASE_URL (if set) - fallback to OpenAI config
-    3. OPENAI_API_KEY only - uses OpenAI official API
+    """调用 OpenAI 兼容 API 生成文本 embedding。
+
+    配置优先级：
+    1. EMBEDDING_API_KEY + EMBEDDING_BASE_URL — 独立 embedding 服务
+    2. OPENAI_API_KEY + OPENAI_BASE_URL — 回退到 OpenAI 配置
+    3. OPENAI_API_KEY — 使用 OpenAI 官方 API
     """
     import openai
-    
-    # Check for embedding-specific configuration first
+
+    # 优先检查独立 embedding 配置
     embedding_api_key = os.environ.get("EMBEDDING_API_KEY")
     embedding_base_url = os.environ.get("EMBEDDING_BASE_URL")
     embedding_model = os.environ.get("EMBEDDING_MODEL")
-    
+
     if embedding_api_key:
-        # Use embedding-specific configuration
         api_key = embedding_api_key
         base_url = embedding_base_url
         model = model or embedding_model or "text-embedding-3-small"
-        logger.info(f"Using embedding API: {base_url or 'default'}, model: {model}")
+        logger.info(f"使用 embedding API: {base_url or 'default'}, 模型: {model}")
     else:
-        # Fall back to OpenAI configuration
+        # 回退到 OpenAI 配置
         api_key = os.environ.get("OPENAI_API_KEY")
         base_url = os.environ.get("OPENAI_BASE_URL")
         model = model or "text-embedding-3-small"
-        
+
         if not api_key:
             raise RuntimeError(
-                "Missing API key for embedding generation. "
-                "Set either EMBEDDING_API_KEY or OPENAI_API_KEY"
+                "缺少 embedding 生成所需的 API Key，"
+                "请设置 EMBEDDING_API_KEY 或 OPENAI_API_KEY"
             )
-    
+
     client_kwargs = {"api_key": api_key}
     if base_url:
         client_kwargs["base_url"] = base_url
-    
+
     client = openai.OpenAI(**client_kwargs)
     response = client.embeddings.create(
         model=model,
@@ -105,10 +103,9 @@ def text_to_embedding(text: str, model: str = None) -> List[float]:
 
 
 def build_xpu_text(entry: XpuEntry) -> str:
-    """Build searchable text representation of XPU entry."""
+    """构建 XPU 条目的可搜索文本表示。"""
     parts = []
-    
-    # Context
+
     ctx = entry.context
     if ctx.get("lang"):
         parts.append(f"Language: {ctx['lang']}")
@@ -118,56 +115,54 @@ def build_xpu_text(entry: XpuEntry) -> str:
         parts.append(f"Python versions: {', '.join(map(str, ctx['python']))}")
     if ctx.get("os"):
         parts.append(f"OS: {', '.join(ctx['os'])}")
-    
-    # Signals
+
     signals = entry.signals
     if signals.get("keywords"):
         parts.append(f"Keywords: {', '.join(signals['keywords'])}")
     if signals.get("regex"):
         parts.append(f"Error patterns: {', '.join(signals['regex'])}")
-    
-    # Advice
+
     if entry.advice_nl:
         parts.append("Advice: " + " ".join(entry.advice_nl))
-    
+
     return "\n".join(parts)
 
 
 class XpuVectorStore:
-    """Vector store for XPU entries."""
-    
+    """XPU 向量数据库存储。"""
+
     def __init__(self, connection_string: Optional[str] = None):
         self.connection_string = connection_string or get_db_connection_string()
         self.pool = ThreadedConnectionPool(1, 5, self.connection_string)
         self._ensure_table()
-    
+
     def _get_conn(self):
-        """Get connection from pool."""
+        """从连接池获取连接。"""
         return self.pool.getconn()
-    
+
     def _put_conn(self, conn):
-        """Return connection to pool."""
+        """归还连接到连接池。"""
         self.pool.putconn(conn)
-    
+
     def _ensure_table(self) -> None:
-        """Ensure table exists."""
+        """确保表存在。"""
         conn = self._get_conn()
         try:
             create_xpu_table(conn)
         finally:
             self._put_conn(conn)
-    
+
     def upsert_entry(self, entry: XpuEntry, embedding: List[float]) -> None:
-        """Insert or update XPU entry with embedding."""
+        """插入或更新 XPU 条目（含 embedding 向量）。"""
         if len(embedding) != EMBEDDING_DIM:
-            raise ValueError(f"Embedding dimension mismatch: expected {EMBEDDING_DIM}, got {len(embedding)}")
-        
+            raise ValueError(f"Embedding 维度不匹配: 期望 {EMBEDDING_DIM}，实际 {len(embedding)}")
+
         conn = self._get_conn()
         try:
             with conn.cursor() as cur:
-                # Convert embedding list to string format for pgvector: '[0.1,0.2,...]'
+                # 将 embedding 列表转为 pgvector 字符串格式: '[0.1,0.2,...]'
                 embedding_str = "[" + ",".join(str(float(x)) for x in embedding) + "]"
-                
+
                 cur.execute("""
                     INSERT INTO xpu_entries (id, context, signals, advice_nl, atoms, embedding)
                     VALUES (%s, %s, %s, %s, %s, %s::vector)
@@ -188,7 +183,7 @@ class XpuVectorStore:
                 conn.commit()
         finally:
             self._put_conn(conn)
-    
+
     def search(
         self,
         query_embedding: List[float],
@@ -196,46 +191,53 @@ class XpuVectorStore:
         k: int = 3,
         min_similarity: float = 0.0,
     ) -> List[Dict[str, Any]]:
-        """Search for similar XPU entries using vector similarity."""
+        """基于向量相似度搜索 XPU 条目。"""
         if len(query_embedding) != EMBEDDING_DIM:
-            raise ValueError(f"Query embedding dimension mismatch: expected {EMBEDDING_DIM}, got {len(query_embedding)}")
-        
+            raise ValueError(f"查询 embedding 维度不匹配: 期望 {EMBEDDING_DIM}，实际 {len(query_embedding)}")
+
         conn = self._get_conn()
         try:
             with conn.cursor() as cur:
-                # Build WHERE clause for context filtering
+                # 设置 IVFFlat 探测数，避免数据量少时索引漏检
+                cur.execute("SET ivfflat.probes = 10")
+
+                # 构建 WHERE 子句（上下文过滤）
                 where_clauses = []
                 where_params = []
-                
+
                 if ctx:
                     if ctx.lang:
-                        where_clauses.append("context->>'lang' = %s")
-                        where_params.append(ctx.lang)
+                        if isinstance(ctx.lang, (list, tuple, set)):
+                            where_clauses.append("context->>'lang' = ANY(%s)")
+                            where_params.append(list(ctx.lang))
+                        else:
+                            where_clauses.append("context->>'lang' = %s")
+                            where_params.append(ctx.lang)
                     if ctx.python:
-                        # Match any Python version in the list
+                        py_list = ctx.python if isinstance(ctx.python, (list, tuple, set)) else [ctx.python]
+                        # 匹配 Python 版本列表中的任意一个
                         py_conditions = []
-                        for py_ver in ctx.python:
+                        for py_ver in py_list:
                             py_conditions.append("EXISTS (SELECT 1 FROM jsonb_array_elements_text(context->'python') AS v WHERE v LIKE %s)")
                             where_params.append(f"{py_ver}%")
                         if py_conditions:
                             where_clauses.append(f"({' OR '.join(py_conditions)})")
                     if ctx.tools:
-                        # Match if any tool in context matches
+                        # 匹配工具列表中的任意一个
                         tool_conditions = []
                         for tool in ctx.tools:
                             tool_conditions.append("EXISTS (SELECT 1 FROM jsonb_array_elements_text(context->'tools') AS t WHERE t = %s)")
                             where_params.append(tool)
                         if tool_conditions:
                             where_clauses.append(f"({' OR '.join(tool_conditions)})")
-                
+
                 where_sql = " AND " + " AND ".join(where_clauses) if where_clauses else ""
-                
-                # Convert embedding list to string format for pgvector: '[0.1,0.2,...]'
+
+                # 将 embedding 列表转为 pgvector 字符串格式
                 embedding_str = "[" + ",".join(str(float(x)) for x in query_embedding) + "]"
-                
-                # Build query with proper parameter order
+
                 query = f"""
-                    SELECT 
+                    SELECT
                         id,
                         context,
                         signals,
@@ -248,13 +250,11 @@ class XpuVectorStore:
                     ORDER BY embedding <=> %s::vector
                     LIMIT %s;
                 """
-                # Parameters: query_embedding (for SELECT), query_embedding (for WHERE), min_similarity, 
-                #             where_params..., query_embedding (for ORDER BY), k
                 params = [embedding_str, embedding_str, min_similarity] + where_params + [embedding_str, k]
-                
+
                 cur.execute(query, params)
                 rows = cur.fetchall()
-                
+
                 results = []
                 for row in rows:
                     results.append({
@@ -265,13 +265,13 @@ class XpuVectorStore:
                         "atoms": row[4],
                         "similarity": float(row[5]),
                     })
-                
+
                 return results
         finally:
             self._put_conn(conn)
-    
+
     def get_entry(self, xpu_id: str) -> Optional[Dict[str, Any]]:
-        """Get single XPU entry by ID."""
+        """根据 ID 获取单条 XPU 条目。"""
         conn = self._get_conn()
         try:
             with conn.cursor() as cur:
@@ -292,28 +292,30 @@ class XpuVectorStore:
                 }
         finally:
             self._put_conn(conn)
-    
+
     def close(self) -> None:
-        """Close connection pool."""
+        """关闭连接池。"""
         if self.pool and not self.pool.closed:
             self.pool.closeall()
 
-    # 在 XpuVectorStore 类中添加这个方法
+    _TELEMETRY_FIELDS = {"hits", "successes", "failures"}
+
     def increment_telemetry(self, xpu_ids: List[str], field: str):
-        """
-        原子操作：给指定 ID 列表的 telemetry 某个字段 +1
+        """原子操作：给指定 ID 列表的 telemetry 某个字段 +1。
         field 只能是 'hits', 'successes', 'failures'
         """
+        if field not in self._TELEMETRY_FIELDS:
+            raise ValueError(f"非法的 telemetry 字段: {field}，仅允许 {self._TELEMETRY_FIELDS}")
         if not xpu_ids: return
         conn = self._get_conn()
         try:
             with conn.cursor() as cur:
                 # 使用 Postgres 的 jsonb_set 和 COALESCE 实现原子 +1
                 sql = f"""
-                    UPDATE xpu_entries 
+                    UPDATE xpu_entries
                     SET telemetry = jsonb_set(
-                        COALESCE(telemetry, '{{}}'::jsonb), 
-                        '{{{field}}}', 
+                        COALESCE(telemetry, '{{}}'::jsonb),
+                        '{{{field}}}',
                         (COALESCE(telemetry->>'{field}', '0')::int + 1)::text::jsonb
                     )
                     WHERE id = ANY(%s);
@@ -321,12 +323,12 @@ class XpuVectorStore:
                 cur.execute(sql, (xpu_ids,))
                 conn.commit()
         except Exception as e:
-            logger.error(f"Failed to update telemetry ({field}): {e}")
+            logger.error(f"更新 telemetry ({field}) 失败: {e}")
         finally:
             self._put_conn(conn)
 
     def update_advice(self, xpu_id: str, new_advice: List[str]) -> None:
-        """更新某条经验的 advice_nl 字段（用于合并部署后生成的新建议）。"""
+        """更新某条经验的 advice_nl 字段（用于合并后生成的新建议）。"""
         conn = self._get_conn()
         try:
             with conn.cursor() as cur:
@@ -335,32 +337,28 @@ class XpuVectorStore:
                     (json.dumps(new_advice), xpu_id),
                 )
                 conn.commit()
-                logger.info(f"[XpuVectorStore] Updated advice_nl for entry '{xpu_id}' ({len(new_advice)} steps)")
+                logger.info(f"已更新经验 '{xpu_id}' 的 advice_nl（{len(new_advice)} 条建议）")
         except Exception as e:
-            logger.error(f"Failed to update advice_nl for '{xpu_id}': {e}")
+            logger.error(f"更新经验 '{xpu_id}' 的 advice_nl 失败: {e}")
         finally:
             self._put_conn(conn)
 
-    # === 支持批量更新浮点数分数 ===
     def update_telemetry_scores(self, updates: Dict[str, float], field: str = 'hits'):
-        """
-        批量更新分数。
+        """批量更新遥测分数。
         updates: { "xpu_id_1": 0.5, "xpu_id_2": 0.25 }
-        field: 'hits'
         """
+        if field not in self._TELEMETRY_FIELDS:
+            raise ValueError(f"非法的 telemetry 字段: {field}，仅允许 {self._TELEMETRY_FIELDS}")
         if not updates: return
         conn = self._get_conn()
         try:
             with conn.cursor() as cur:
-                # 使用临时表或 VALUES 列表进行批量更新
-                # 这里使用简单的循环执行，因为通常 batch 只有几个，性能不是瓶颈
-                # 注意：SQL 中需要把旧值转为 float/numeric 再相加
                 for xpu_id, score in updates.items():
                     sql = f"""
-                        UPDATE xpu_entries 
+                        UPDATE xpu_entries
                         SET telemetry = jsonb_set(
-                            COALESCE(telemetry, '{{}}'::jsonb), 
-                            '{{{field}}}', 
+                            COALESCE(telemetry, '{{}}'::jsonb),
+                            '{{{field}}}',
                             to_jsonb(COALESCE((telemetry->>'{field}')::numeric, 0) + %s)
                         )
                         WHERE id = %s;
@@ -368,6 +366,6 @@ class XpuVectorStore:
                     cur.execute(sql, (score, xpu_id))
                 conn.commit()
         except Exception as e:
-            logger.error(f"Failed to update telemetry scores: {e}")
+            logger.error(f"批量更新 telemetry 分数失败: {e}")
         finally:
             self._put_conn(conn)

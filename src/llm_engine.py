@@ -116,16 +116,69 @@ Current Status:
 XPU Suggestions (Proven solutions from history):
 {formatted_xpu_suggestions}
 
-Instructions:
-1. Review the Last Error and XPU Suggestions.
-2. If an XPU suggestion seems relevant, PREFER using action_type="TRY_XPU_SUGGESTION" with its ID. This will trigger a safe, verifiable execution sandbox.
-3. If no XPU suggestion fits, generate a standard shell command using action_type="SHELL_COMMAND".
-4. Always analyze WHY you chose a specific action in the "thought" field.
+## Action Types — Purpose and When to Use
+
+### SHELL_COMMAND
+Execute any shell command directly in the container.
+- **Use for**: installing packages, setting PYTHONPATH, exploring repo structure, running
+  diagnostic commands (e.g. `pytest --co -q` to inspect collection errors), fixing configs.
+- **This is your default action.** Use it whenever you are still diagnosing or fixing.
+- To check if dependencies are installed, run: `pip list | grep <pkg>` or `python -c "import X"`.
+- To understand pytest errors without triggering full verification, run: `pytest --co -q 2>&1 | head -50`.
+
+### TRY_XPU_SUGGESTION
+Apply a proven fix from the XPU knowledge base inside a snapshot sandbox.
+- **Use for**: applying an "Executable XPU Fix" whose commands are a precise match for the
+  current error. The container is snapshotted before execution and auto-rolled back on failure.
+- **Do NOT use** if the listed commands only partially match, or if you want to adapt the commands —
+  in that case, write a SHELL_COMMAND yourself (referencing the XPU Reference Knowledge).
+- **Do NOT use** if "Executable XPU Fixes" is absent from the XPU section (means commands are empty).
+
+### SET_ENV
+Persist an environment variable across all subsequent commands.
+- **Use for**: setting variables like PYTHONPATH, JAVA_HOME that must survive across steps.
+- Prefer this over `export VAR=...` in a SHELL_COMMAND, which only lasts for that single command.
+
+### ROLLBACK_ENV
+Roll the container back to the most recent snapshot.
+- **Use for**: recovering from a broken environment state — e.g. after multiple failed attempts
+  left the container in an inconsistent state, or after a bad TRY_XPU_SUGGESTION result.
+- This is a recovery escape hatch, not a routine action. Use sparingly.
+
+### VERIFY
+Trigger the full pytest verification pipeline. This is an **expensive, final-stage action**:
+it spins up a sub-agent that probes the project structure and runs `pytest --co -q` then
+`pytest -x -q`. It is designed to confirm that setup is complete, NOT to diagnose problems.
+- **ONLY call VERIFY when you genuinely believe all dependencies are installed and the
+  environment is fully configured.**
+- **NEVER call VERIFY to probe the environment, discover missing packages, or get pytest
+  output for diagnosis.** Use `SHELL_COMMAND` with `pytest --co -q` for that purpose instead.
+- If VERIFY succeeds → call FINISH immediately.
+- If VERIFY fails → analyze the output and continue fixing with SHELL_COMMAND.
+
+### FINISH
+Signal that the task is complete. **ONLY call after a successful VERIFY.**
+
+---
+
+## Decision Instructions
+
+1. Analyze the Last Error carefully before choosing an action.
+2. Review "XPU Reference Knowledge" for diagnosis hints. You MAY use this knowledge
+   to write a better SHELL_COMMAND — no need to pick TRY_XPU_SUGGESTION for this.
+3. If "Executable XPU Fixes" lists a fix that directly matches the error, you MAY use
+   TRY_XPU_SUGGESTION with its ID (snapshot-protected, auto-rollback on failure).
+4. Default to SHELL_COMMAND when in doubt.
+5. Only call VERIFY when you are confident the environment is ready. Until then, diagnose
+   with SHELL_COMMAND.
+6. Always explain WHY you chose the action in the "thought" field.
+
+---
 
 You MUST respond in JSON format with this schema:
 {{
-  "thought": "分析当前状态和错误原因...",
-  "action_type": "SHELL_COMMAND" | "TRY_XPU_SUGGESTION" | "SET_ENV" | "ROLLBACK_ENV" | "FINISH",
+  "thought": "分析当前状态和错误原因，解释为什么选择该动作...",
+  "action_type": "SHELL_COMMAND" | "TRY_XPU_SUGGESTION" | "SET_ENV" | "ROLLBACK_ENV" | "VERIFY" | "FINISH",
   "content": {{
     // 如果是 SHELL_COMMAND:
     "command": "pip install numpy",
@@ -138,20 +191,11 @@ You MUST respond in JSON format with this schema:
     "env_key": "VAR_NAME",
     "env_value": "value"
 
-    // 如果是 ROLLBACK_ENV:
-    // （无需额外字段，回滚到最近快照）
-
-    // 如果是 FINISH:
-    "message": "环境配置完成"
+    // 如果是 ROLLBACK_ENV / VERIFY / FINISH:
+    // （ROLLBACK_ENV、VERIFY 无需额外字段）
+    // FINISH 需要: "message": "环境配置完成"
   }}
 }}
-
-Action types:
-- SHELL_COMMAND: 直接执行 shell 命令
-- TRY_XPU_SUGGESTION: 在快照保护下试用 XPU 建议（失败自动回滚）
-- SET_ENV: 设置持久化环境变量
-- ROLLBACK_ENV: 回滚容器到最近快照（环境状态混乱或多次尝试失败时使用）
-- FINISH: 任务完成，退出循环
 """
 
     def __init__(self):
@@ -173,20 +217,36 @@ Action types:
         suggestions: list[XPUSuggestion],
         failed_ids: set[str],
     ) -> str:
-        """格式化 XPU 建议为文本"""
+        """格式化 XPU 建议为两层文本：参考知识 + 可执行方案"""
         if not suggestions:
-            return "No XPU suggestions available."
+            return "No XPU knowledge available."
 
-        lines = []
+        ref_lines = []    # Layer 1：所有建议的自然语言参考（无论 commands 是否为空）
+        exec_lines = []   # Layer 2：commands 非空的可执行建议
+
         for s in suggestions:
             if s.id in failed_ids:
                 continue  # 跳过已失败的建议
-            lines.append(
-                f"[ID: {s.id}] Description: {s.description}. "
-                f"Commands: {s.commands}. Confidence: {s.confidence:.2f}"
-            )
+            # Layer 1：始终展示自然语言建议
+            ref_lines.append(f"- [{s.id}] {s.description}")
+            # Layer 2：只有 commands 非空才展示为可执行选项
+            if s.commands:
+                exec_lines.append(
+                    f"  [ID: {s.id}] Commands: {s.commands} (confidence: {s.confidence:.2f})"
+                )
 
-        return "\n".join(lines) if lines else "No applicable XPU suggestions."
+        parts = []
+        if ref_lines:
+            parts.append(
+                "XPU Reference Knowledge (use to inform your SHELL_COMMAND):\n"
+                + "\n".join(ref_lines)
+            )
+        if exec_lines:
+            parts.append(
+                "Executable XPU Fixes (use TRY_XPU_SUGGESTION, snapshot-protected):\n"
+                + "\n".join(exec_lines)
+            )
+        return "\n\n".join(parts) if parts else "No applicable XPU knowledge."
 
     def generate_action(
         self,
@@ -315,6 +375,11 @@ Action types:
         elif action_type_str == "ROLLBACK_ENV":
             return AgentAction(
                 action_type=ActionType.ROLLBACK_ENV,
+                thought=thought,
+            )
+        elif action_type_str == "VERIFY":
+            return AgentAction(
+                action_type=ActionType.VERIFY,
                 thought=thought,
             )
         else:

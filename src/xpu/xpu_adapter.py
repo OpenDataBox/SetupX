@@ -1,3 +1,5 @@
+"""XPU 数据结构定义与评分检索逻辑。"""
+
 import json
 import re
 from dataclasses import dataclass, field
@@ -7,12 +9,14 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 @dataclass
 class XpuAtom:
+    """XPU 原子操作（如 pip_install, set_env 等）。"""
     name: str
     args: Dict[str, Any]
 
 
 @dataclass
 class XpuEntry:
+    """XPU 经验条目。"""
     id: str
     context: Dict[str, Any]
     signals: Dict[str, Any]
@@ -22,6 +26,7 @@ class XpuEntry:
 
 @dataclass
 class XpuContext:
+    """XPU 查询上下文（语言、操作系统、Python 版本、工具链）。"""
     lang: Optional[str] = None
     os: Optional[str] = None
     python: Optional[str] = None
@@ -29,6 +34,7 @@ class XpuContext:
 
 
 def _parse_xpu_line(obj: Dict[str, Any]) -> XpuEntry:
+    """解析单行 JSON 为 XpuEntry。"""
     atoms_raw = obj.get("atoms") or []
     atoms = [XpuAtom(name=a.get("name", ""), args=a.get("args", {})) for a in atoms_raw]
     return XpuEntry(
@@ -42,11 +48,7 @@ def _parse_xpu_line(obj: Dict[str, Any]) -> XpuEntry:
 
 
 def load_xpu_entries(jsonl_path: Path) -> List[XpuEntry]:
-    """Load all XPU entries from a JSONL file.
-
-    The file is expected to have one JSON object per line, following the schema
-    similar to exp/xpu_v0.jsonl.
-    """
+    """从 JSONL 文件加载所有 XPU 条目。"""
     entries: List[XpuEntry] = []
     with jsonl_path.open("r", encoding="utf-8") as f:
         for line in f:
@@ -59,21 +61,18 @@ def load_xpu_entries(jsonl_path: Path) -> List[XpuEntry]:
 
 
 def _match_regex(log_snippet: str, patterns: Iterable[str]) -> bool:
+    """检测日志片段是否匹配任一正则表达式。"""
     for p in patterns:
         try:
             if re.search(p, log_snippet):
                 return True
         except re.error:
-            # ignore invalid patterns
             continue
     return False
 
 
 def _keyword_score(log_snippet: str, keywords: Iterable[str]) -> int:
-    """A simple keyword overlap score.
-
-    Counts how many keywords appear as substrings in the log snippet.
-    """
+    """简单关键词重叠评分：统计日志片段中出现了多少个关键词。"""
     text = log_snippet.lower()
     score = 0
     for kw in keywords:
@@ -85,20 +84,21 @@ def _keyword_score(log_snippet: str, keywords: Iterable[str]) -> int:
 
 
 def _context_match_score(entry: XpuEntry, ctx: XpuContext) -> int:
+    """计算上下文匹配分数（语言、工具、Python 版本、操作系统）。"""
     score = 0
     ectx = entry.context
 
-    # language
+    # 语言匹配
     if ctx.lang and ectx.get("lang") == ctx.lang:
         score += 2
 
-    # tools intersection
+    # 工具交集
     tools_entry = set(ectx.get("tools") or [])
     tools_ctx = set(ctx.tools or [])
     if tools_entry and tools_ctx and tools_entry & tools_ctx:
         score += 2
 
-    # python version presence (loose match: major.minor prefix)
+    # Python 版本前缀匹配
     if ctx.python:
         py_list = ectx.get("python") or []
         for py in py_list:
@@ -106,7 +106,7 @@ def _context_match_score(entry: XpuEntry, ctx: XpuContext) -> int:
                 score += 1
                 break
 
-    # os presence
+    # 操作系统匹配
     if ctx.os:
         os_list = ectx.get("os") or []
         if ctx.os in os_list:
@@ -116,23 +116,24 @@ def _context_match_score(entry: XpuEntry, ctx: XpuContext) -> int:
 
 
 def score_xpu(entry: XpuEntry, log_snippet: str, ctx: XpuContext) -> float:
+    """计算单条 XPU 条目的综合评分（正则 + 关键词 + 上下文）。"""
     signals = entry.signals or {}
     regexes = signals.get("regex") or []
     keywords = signals.get("keywords") or []
 
     score = 0.0
 
-    # regex gets a large bonus if any pattern matches
+    # 正则匹配加大分
     if regexes and _match_regex(log_snippet, regexes):
         score += 10.0
 
-    # keyword overlap
+    # 关键词重叠
     score += 1.0 * _keyword_score(log_snippet, keywords)
 
-    # context match
+    # 上下文匹配
     score += 1.5 * _context_match_score(entry, ctx)
 
-    # small bias towards entries that have atoms at all
+    # 有原子操作的条目给小加分
     if entry.atoms:
         score += 0.5
 
@@ -147,15 +148,14 @@ def retrieve_xpu_candidates(
     k: int = 3,
     prefer_atoms: bool = True,
 ) -> List[XpuEntry]:
-    """Select top-k XPU entries for the given log/context.
+    """选取 Top-K XPU 条目。
 
-    Scoring is done via regex + keyword + context; optionally prioritises
-    entries that contain atoms.
+    评分基于正则 + 关键词 + 上下文；可选优先返回包含原子操作的条目。
     """
     if not entries:
         return []
 
-    # compute base scores
+    # 计算基础分数
     scored: List[tuple[float, XpuEntry]] = []
     for e in entries:
         s = score_xpu(e, log_snippet=log_snippet, ctx=ctx)
@@ -164,7 +164,7 @@ def retrieve_xpu_candidates(
     if not scored:
         return []
 
-    # optionally prefer entries with atoms
+    # 优先返回有原子操作的条目
     if prefer_atoms:
         with_atoms = [(s, e) for s, e in scored if e.atoms]
         without_atoms = [(s, e) for s, e in scored if not e.atoms]
@@ -177,16 +177,12 @@ def retrieve_xpu_candidates(
             result.extend(e for _, e in without_atoms[: k - len(result)])
         return result
 
-    # no special preference
     scored.sort(key=lambda x: x[0], reverse=True)
     return [e for _, e in scored[:k]]
 
 
 def render_atom_to_commands(atom: XpuAtom) -> List[str]:
-    """Render a single atom into one or more bash commands.
-
-    Commands are returned as raw strings without comments.
-    """
+    """将单个原子操作渲染为一条或多条 bash 命令。"""
     name = atom.name
     args = atom.args or {}
 
@@ -198,11 +194,13 @@ def render_atom_to_commands(atom: XpuAtom) -> List[str]:
         return [f"pip install '{pkg}{spec}'"]
 
     if name == "pip_install":
-        pkg = args.get("name")
+        pkg = args.get("name") or args.get("package")
         spec = args.get("spec", "")
+        flags = args.get("flags", [])
         if pkg is None:
             return []
-        return [f"pip install '{pkg}{spec}'"]
+        flag_str = " ".join(flags) + " " if flags else ""
+        return [f"pip install {flag_str}'{pkg}{spec}'"]
 
     if name == "set_pytest_flag":
         flag_name = args.get("name")
@@ -212,7 +210,7 @@ def render_atom_to_commands(atom: XpuAtom) -> List[str]:
         return [f"pytest {flag_name}={value}"]
 
     if name == "set_env":
-        key = args.get("key")
+        key = args.get("key") or args.get("var")
         value = args.get("value")
         if not key or value is None:
             return []
@@ -229,7 +227,6 @@ def render_atom_to_commands(atom: XpuAtom) -> List[str]:
         value = args.get("value")
         if not key:
             return []
-        # keep it minimal; let the caller decide exact quoting
         return [
             "python - <<'PY'",
             "from django.conf import settings",
@@ -238,18 +235,63 @@ def render_atom_to_commands(atom: XpuAtom) -> List[str]:
         ]
 
     if name == "or_upgrade_pkg":
-        pkg = args.get("name")
-        min_version = args.get("min_version")
-        if not pkg or not min_version:
-            return []
-        return [f"pip install '{pkg}>={min_version}'"]
+        pkg_manager = args.get("package_manager", "pip")
+        if pkg_manager == "apt":
+            pkg = args.get("package_name") or args.get("name")
+            if not pkg:
+                return []
+            use_sudo = args.get("use_sudo", False)
+            sudo = "sudo " if use_sudo else ""
+            return [f"{sudo}apt-get update", f"{sudo}apt-get install -y {pkg}"]
+        else:
+            pkg = args.get("name") or args.get("package_name")
+            min_version = args.get("min_version")
+            if not pkg or not min_version:
+                return []
+            return [f"pip install '{pkg}>={min_version}'"]
 
-    # unknown atom type: do not emit anything for now
+    if name == "apt_install":
+        packages = args.get("packages") or []
+        if isinstance(packages, str):
+            packages = [packages]
+        if not packages:
+            return []
+        return ["apt-get update", f"apt-get install -y {' '.join(packages)}"]
+
+    if name == "conda_install":
+        packages = args.get("packages") or []
+        if isinstance(packages, str):
+            packages = [packages]
+        if not packages:
+            return []
+        return [f"conda install -y {' '.join(packages)}"]
+
+    if name == "npm_install":
+        packages = args.get("packages") or []
+        if isinstance(packages, str):
+            packages = [packages]
+        if not packages:
+            return ["npm install"]
+        return [f"npm install {' '.join(packages)}"]
+
+    if name == "shell":
+        cmd = args.get("cmd")
+        if not cmd:
+            return []
+        return [cmd]
+
+    if name == "adjust_command":
+        cmd = args.get("modified_command") or args.get("cmd")
+        if not cmd:
+            return []
+        return [cmd]
+
+    # 未知原子类型，不生成命令
     return []
 
 
 def render_entry_commands(entry: XpuEntry) -> List[str]:
-    """Render all atoms of an entry into a flat list of bash commands."""
+    """将条目的所有原子操作渲染为扁平的 bash 命令列表。"""
     commands: List[str] = []
     for atom in entry.atoms:
         commands.extend(render_atom_to_commands(atom))
@@ -257,11 +299,7 @@ def render_entry_commands(entry: XpuEntry) -> List[str]:
 
 
 def render_candidates_block(entries: Sequence[XpuEntry]) -> str:
-    """Render a human-readable "Candidate Fixes" block for inclusion in a prompt.
-
-    The block is intended to be placed inside a human message, describing both
-    the high-level advice and the corresponding bash snippets.
-    """
+    """渲染候选修复方案文本块，用于注入 LLM prompt。"""
     if not entries:
         return ""
 

@@ -53,7 +53,7 @@ def get_env_or_raise(name: str) -> str:
         if name == "MOONSHOT_API_KEY":
             val = os.environ.get("OPENAI_API_KEY")
     if not val:
-        raise RuntimeError(f"Missing required environment variable: {name}")
+        raise RuntimeError(f"缺少必需的环境变量: {name}")
     return val
 
 
@@ -65,11 +65,18 @@ def openai_compatible_chat_completions(
     timeout_sec: int,
     response_format_json: bool = True,
 ) -> Dict[str, Any]:
-    # 修正 URL 拼接逻辑
-    if "v1" not in base_url and not base_url.endswith("/"):
+    """调用 OpenAI 兼容的 Chat Completions API。"""
+    # 修复：ARK 使用 v3，不要强行加 v1
+    if "v1" not in base_url and "v3" not in base_url and not base_url.endswith("/"):
         base_url += "/v1"
     url = base_url.rstrip("/") + "/chat/completions"
     
+    # DEBUG PRINT
+    masked_key = api_key[:8] + "..." if api_key else "None"
+    print(f"[DEBUG] LLM Request URL: {url}")
+    print(f"[DEBUG] LLM API Key: {masked_key}")
+    print(f"[DEBUG] LLM Model: {model}")
+
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -82,9 +89,6 @@ def openai_compatible_chat_completions(
     }
     if response_format_json:
         payload["response_format"] = {"type": "json_object"}
-    
-    # 打印调试信息（因为之前有配置错误）
-    # print(f"DEBUG: Requesting {url} with model {model}")
     
     resp = requests.post(url, headers=headers, data=json.dumps(payload), timeout=timeout_sec)
     if resp.status_code >= 400:
@@ -173,9 +177,11 @@ def _iter_strings(obj: Any) -> Iterable[str]:
 
 def extract_commands_history(traj: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
-    [Repo2Run 适配版]
+    [Repo2Run 适配版 + JSON 适配]
     从轨迹中提取命令。
-    Repo2Run 的轨迹是 [{"role": "assistant", "content": "... ```bash\ncmd\n``` ..."}, ...]
+    支持:
+    1. Markdown code blocks: ```bash ... ```
+    2. JSON format: {"action_type": "SHELL_COMMAND", "content": {"command": "..."}}
     """
     cmds = []
     
@@ -189,17 +195,39 @@ def extract_commands_history(traj: List[Dict[str, Any]]) -> List[Dict[str, Any]]
             if isinstance(raw, list):
                 return raw
         
-        # Repo2Run style: Parse content
+        # 解析 content 字段
         content = item.get("content", "")
         role = item.get("role", "")
         
         # 只看 assistant 的输出
         if role == "assistant" and content:
+            # 1. 尝试解析 JSON 格式 (我们的 Agent)
+            try:
+                # 能够被解析为 JSON 的字符串
+                if isinstance(content, str) and content.strip().startswith("{"):
+                    data = json.loads(content)
+                    # 检查是否包含 command
+                    cmd = None
+                    # 形式 A: {"action_type": "SHELL_COMMAND", "content": {"command": "..."}}
+                    if isinstance(data, dict):
+                        inner_content = data.get("content")
+                        if isinstance(inner_content, dict):
+                            cmd = inner_content.get("command")
+                        # 形式 B: {"command": "..."} (直接结构)
+                        elif data.get("command"):
+                            cmd = data.get("command")
+                    
+                    if cmd:
+                        cmds.append({"command": cmd, "exit_code": 0})
+                        continue # 如果成功解析出 JSON 命令，就不必再正则匹配了
+            except json.JSONDecodeError:
+                pass
+
+            # 2. 尝试正则匹配 (Repo2Run 兼容)
             matches = bash_pattern.findall(content)
             for match in matches:
-                # 简单的命令提取，假设每行是一个命令
                 clean_cmd = match.strip()
-                cmds.append({"command": clean_cmd, "exit_code": 0}) # 暂时假设为0，或者不重要
+                cmds.append({"command": clean_cmd, "exit_code": 0})
                 
     return cmds
 
@@ -253,6 +281,8 @@ def heuristic_is_candidate(stats: Dict[str, Any]) -> Tuple[bool, float]:
     if stats.get("num_commands", 0) >= 1:
         score += 1.0
 
+    print(f"[DEBUG] Heuristic Stats: {stats}, Score: {score}")  # Added debug print
+
     # 只要有分就过
     return score > 0, score
 
@@ -273,8 +303,9 @@ def build_traj_prompt(
 
     error_lines: List[str] = []
     for item in traj:
-        # 只提取 system (Observation) 里的错误
-        if item.get("role") == "system":
+        # 提取 system 或 user (Observation) 里的错误
+        # 我们的 Agent 将执行结果记录在 user 角色中
+        if item.get("role") in ("system", "user"):
             text = item.get("content", "")
             if any(kw.lower() in text.lower() for kw in ERROR_KEYWORDS):
                 error_lines.append(text)
@@ -356,7 +387,7 @@ def extract_xpu_from_trajs(
     output_jsonl.parent.mkdir(parents=True, exist_ok=True)
 
     with output_jsonl.open("w", encoding="utf-8") as f_out:
-        for path in tqdm(files, total=len(files), desc="Extracting XPU from trajs"):
+        for path in tqdm(files, total=len(files), desc="从轨迹中提取 XPU"):
             repo, rev = parse_repo_revision_from_name(path)
             traj = load_traj(path)
             stats = heuristic_stats_for_traj(traj)
@@ -395,7 +426,7 @@ def extract_xpu_from_trajs(
                                 xpu_list = [single]
                     elif llm_decision not in {"skip", "xpu"}:
                         llm_decision = "error"
-                        error_info = f"unexpected decision: {parsed!r}"
+                        error_info = f"非预期的 decision 值: {parsed!r}"
                 except Exception as e:
                     llm_decision = "error"
                     error_info = str(e)

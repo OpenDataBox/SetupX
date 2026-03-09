@@ -12,18 +12,14 @@
 """
 
 import json
-import logging
 import os
-import sys
 import tempfile
 import shutil
 from pathlib import Path
 
-# 添加 xpu_standalone 根目录到路径
-ROOT_DIR = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT_DIR))
+from ..logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger("xpu.online_extractor")
 
 
 def online_extract_and_store(repo_name: str, output_dir: str, sha: str = "HEAD") -> dict:
@@ -73,7 +69,7 @@ def online_extract_and_store(repo_name: str, output_dir: str, sha: str = "HEAD")
         # ===== Step 2: LLM 提取 (复用 extract_xpu_from_trajs_mvp) =====
         extracted_file = tmp_dir / "extracted.jsonl"
 
-        from xpu.extract_xpu_from_trajs_mvp import extract_xpu_from_trajs
+        from .extract_xpu_from_trajs_mvp import extract_xpu_from_trajs
         extract_xpu_from_trajs(jsonl_path, extracted_file)
 
         # ===== Step 3: 过滤有效经验 (复用 extract_xpu_to_v1 的逻辑) =====
@@ -107,9 +103,9 @@ def online_extract_and_store(repo_name: str, output_dir: str, sha: str = "HEAD")
             return result
 
         try:
-            from xpu.xpu_adapter import XpuEntry, XpuAtom
-            from xpu.xpu_vector_store import XpuVectorStore, build_xpu_text, text_to_embedding
-            from xpu.xpu_dedup import dedup_and_store
+            from .xpu_adapter import XpuEntry, XpuAtom
+            from .xpu_vector_store import XpuVectorStore, build_xpu_text, text_to_embedding
+            from .xpu_dedup import dedup_and_store
 
             # 构建 XpuEntry
             atoms = [XpuAtom(name=a.get("name", ""), args=a.get("args", {}))
@@ -155,8 +151,6 @@ def online_extract_and_store(repo_name: str, output_dir: str, sha: str = "HEAD")
 
 if __name__ == "__main__":
     import argparse
-
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
 
     parser = argparse.ArgumentParser(description="在线提取并存储 XPU")
     parser.add_argument("--repo", required=True, help="仓库名称 (owner/repo)")

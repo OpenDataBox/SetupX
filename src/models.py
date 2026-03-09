@@ -15,6 +15,7 @@ class ActionType(Enum):
     TRY_XPU_SUGGESTION = "TRY_XPU_SUGGESTION"  # 推测执行 XPU 建议
     SET_ENV = "SET_ENV"                        # 设置环境变量
     ROLLBACK_ENV = "ROLLBACK_ENV"              # 回滚容器到最近快照
+    VERIFY = "VERIFY"                          # 运行 pytest 验证当前环境
     FINISH = "FINISH"                          # 结束任务
 
 
@@ -140,6 +141,8 @@ class AgentAction:
             return f"[设置环境变量] {self.env_key}={self.env_value}"
         elif self.action_type == ActionType.ROLLBACK_ENV:
             return f"[回滚环境] {self.thought}"
+        elif self.action_type == ActionType.VERIFY:
+            return f"[验证环境] {self.thought}"
         elif self.action_type == ActionType.FINISH:
             return f"[结束] {self.message}"
         return f"[{self.action_type.value}]"
@@ -178,3 +181,46 @@ class AgentState:
     def is_suggestion_failed(self, suggestion_id: str) -> bool:
         """检查建议是否已失败"""
         return suggestion_id in self.failed_suggestions
+
+
+@dataclass
+class SetupResult:
+    """Setup 阶段结果"""
+    repo_url: str
+    container_id: str               # 保留的容器 ID
+    completed: bool                  # LLM 是否主动 FINISH
+    steps_taken: int
+    final_message: str
+    history: list[dict] = field(default_factory=list)  # 完整执行历史
+
+    def to_dict(self) -> dict:
+        return {
+            "repo_url": self.repo_url,
+            "container_id": self.container_id,
+            "completed": self.completed,
+            "steps_taken": self.steps_taken,
+            "final_message": self.final_message,
+        }
+
+
+@dataclass
+class VerifyResult:
+    """验证阶段结果"""
+    success: bool                    # pytest 是否成功
+    test_framework: str              # 检测到的框架 (pytest / unittest / none)
+    collect_count: int               # 收集到多少测试用例
+    command: str                     # 实际执行的验证命令
+    exit_code: int
+    stdout: str
+    stderr: str
+
+    def to_dict(self) -> dict:
+        return {
+            "success": self.success,
+            "test_framework": self.test_framework,
+            "collect_count": self.collect_count,
+            "command": self.command,
+            "exit_code": self.exit_code,
+            "stdout": self.stdout,
+            "stderr": self.stderr,
+        }

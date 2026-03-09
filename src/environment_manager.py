@@ -108,7 +108,7 @@ class EnvironmentManager:
         # 克隆仓库（配置 HTTP/1.1 避免 HTTP2 framing 问题，带重试）
         logger.info(f"克隆仓库: {repo_url}")
         self.exec_run("git config --global http.version HTTP/1.1", work_dir=root)
-        clone_cmd = f"git clone {repo_url} {self._config.work_dir}/repo"
+        clone_cmd = f"git clone --depth=1 {repo_url} {self._config.work_dir}/repo"
         result = None
         for attempt in range(3):
             result = self.exec_run(clone_cmd, work_dir=root)
@@ -138,25 +138,25 @@ class EnvironmentManager:
         if timeout is None:
             timeout = self._config.timeout
 
-        # 构造带环境变量的命令
-        env_prefix = " ".join(f"{k}={v}" for k, v in self._env_vars.items())
-        full_command = f"{env_prefix} {command}" if env_prefix else command
-
         # 确定工作目录
         if work_dir is None:
             work_dir = f"{self._config.work_dir}/repo"
 
         # 构造执行命令
         if work_dir == "/":
-            exec_command = full_command
+            exec_command = command
         else:
-            exec_command = f"cd {work_dir} && {full_command}"
+            exec_command = f"cd {work_dir} && {command}"
 
         logger.debug(f"执行命令: {command}")
 
+        # 通过 Docker 原生 environment 参数注入环境变量
+        # 相比 shell prefix（KEY=VAL cmd），此方式对整个 bash 进程及其所有子命令均可见，
+        # 不受 && 链分隔符影响，且 echo $KEY 可正确返回值
         exit_code, output = self.container.exec_run(
-            cmd=["bash", "-c", exec_command],
+            cmd=["timeout", str(timeout), "bash", "-c", exec_command],
             demux=True,
+            environment=self._env_vars if self._env_vars else None,
         )
 
         stdout_raw = (output[0] or b"").decode("utf-8", errors="replace")
@@ -196,13 +196,10 @@ class EnvironmentManager:
         return result.success
 
     def set_env(self, key: str, value: str) -> None:
-        """设置环境变量（持久化到容器）"""
+        """设置环境变量。变量存入 _env_vars，后续每次 exec_run 均通过
+        Docker 原生 environment 参数注入，对整个 bash 进程及所有子命令可见。"""
         self._env_vars[key] = value
         logger.info(f"设置环境变量: {key}={value}")
-
-        # 写入 ~/.bashrc（按 blueprint 4.3 节建议）
-        escaped_value = value.replace('"', '\\"')
-        self.exec_run(f'echo "export {key}=\"{escaped_value}\"" >> ~/.bashrc')
 
     def get_env(self, key: str) -> str | None:
         """获取环境变量"""
@@ -254,20 +251,9 @@ class EnvironmentManager:
         """列出所有快照"""
         return self._history_snapshots.copy()
 
-    def cleanup(self) -> None:
-        """清理资源：停止容器、删除快照镜像"""
-        logger.info("清理资源...")
-
-        # 停止并删除容器
-        if self._container:
-            try:
-                self._container.stop()
-                self._container.remove()
-                logger.debug(f"已删除容器: {self._container.id[:12]}")
-            except DockerException as e:
-                logger.warning(f"删除容器失败: {e}")
-
-        # 删除快照镜像
+    def cleanup_snapshots(self) -> None:
+        """仅删除快照镜像（释放磁盘），保留容器"""
+        logger.info("清理快照镜像...")
         for tag in self._history_snapshots:
             try:
                 image_name = f"setup_agent_checkpoint:{tag}"
@@ -275,9 +261,27 @@ class EnvironmentManager:
                 logger.debug(f"已删除快照镜像: {tag}")
             except DockerException as e:
                 logger.warning(f"删除快照镜像失败 {tag}: {e}")
-
-        self._container = None
         self._history_snapshots.clear()
+        logger.info("快照镜像清理完成")
+
+    def destroy(self) -> None:
+        """停止并删除容器"""
+        logger.info("销毁容器...")
+        if self._container:
+            try:
+                self._container.stop()
+                self._container.remove()
+                logger.debug(f"已删除容器: {self._container.id[:12]}")
+            except DockerException as e:
+                logger.warning(f"删除容器失败: {e}")
+            self._container = None
+        logger.info("容器已销毁")
+
+    def cleanup(self) -> None:
+        """清理所有资源：停止容器 + 删除快照镜像"""
+        logger.info("清理全部资源...")
+        self.destroy()
+        self.cleanup_snapshots()
         logger.info("资源清理完成")
 
     def __enter__(self):
