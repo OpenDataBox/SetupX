@@ -1,88 +1,169 @@
 """
 LLM 推理核心（按 blueprint 1.3 节定义）
 支持 ARK 和 OpenAI 兼容接口，记录完整的输入输出日志
+
+核心职责：
+  1. 封装 LLM API 调用（支持字节 ARK 和 OpenAI 兼容接口）
+  2. 构造 System Prompt（包含动作定义 + XPU 建议 + 当前观测）
+  3. 将 LLM 输出解析为结构化的 AgentAction
+  4. XPU 建议适配：根据经验思路 + 当前上下文，LLM 生成适配命令
+
+模块结构：
+  LLMClientBase（抽象基类）
+  ├── ARKClient：字节 ARK API 客户端
+  └── OpenAICompatibleClient：OpenAI 兼容 API 客户端
+  LLMEngine：推理引擎，编排 prompt 构造 + API 调用 + 响应解析
 """
 
-import json
-import re
-from abc import ABC, abstractmethod
-from typing import Any
+import json  # JSON 序列化与解析
+import re    # 正则表达式，用于从 markdown 中提取 JSON
+from abc import ABC, abstractmethod  # 抽象基类
+from typing import Any  # 类型标注
 
-import httpx
+import httpx  # HTTP 客户端，用于调用 LLM API
 
-from .config import get_config, ARKConfig, OpenAIConfig
-from .logger import get_logger
-from .models import AgentAction, ActionType, XPUSuggestion
+from .config import get_config, ARKConfig, OpenAIConfig  # 项目配置
+from .logger import get_logger  # 统一日志系统
+from .models import AgentAction, ActionType, XPUSuggestion  # 数据模型
 
-logger = get_logger("llm")
+logger = get_logger("llm")  # LLM 模块专用日志
 
+
+# =============================================================================
+# LLM 客户端抽象层
+# =============================================================================
 
 class LLMClientBase(ABC):
-    """LLM 客户端抽象基类"""
+    """LLM 客户端抽象基类
+
+    定义统一的 chat 接口，所有 LLM 后端都通过此接口调用。
+    """
 
     @abstractmethod
     def chat(self, messages: list[dict], json_mode: bool = False) -> str:
-        """发送聊天请求"""
+        """发送聊天请求并返回 LLM 生成的文本
+
+        Args:
+            messages: 对话消息列表（role: system/user/assistant）
+            json_mode: 是否要求 LLM 以 JSON 格式输出
+
+        Returns:
+            LLM 生成的文本内容
+        """
         pass
 
 
 class ARKClient(LLMClientBase):
-    """字节 ARK API 客户端"""
+    """字节 ARK API 客户端
+
+    ARK 是字节跳动的大模型服务平台，API 与 OpenAI 兼容但使用
+    独立的 base_url 和 deployment（模型部署名）。
+    """
 
     def __init__(self, config: ARKConfig):
+        """初始化 ARK 客户端
+
+        Args:
+            config: ARK 配置对象，包含 api_key、base_url、deployment 等
+        """
         self._config = config
+        # 创建 HTTP 客户端，超时 120 秒（LLM 生成可能较慢）
         self._client = httpx.Client(timeout=120)
 
     def chat(self, messages: list[dict], json_mode: bool = False) -> str:
+        """调用 ARK API 发送聊天请求
+
+        Args:
+            messages: 对话消息列表
+            json_mode: 是否要求 JSON 格式输出
+
+        Returns:
+            LLM 生成的文本内容
+        """
+        # 构造 HTTP 请求头（Bearer Token 认证）
         headers = {
             "Authorization": f"Bearer {self._config.api_key}",
             "Content-Type": "application/json",
         }
 
+        # 构造请求体
         payload: dict[str, Any] = {
-            "model": self._config.deployment,
+            "model": self._config.deployment,  # ARK 使用 deployment 作为模型标识
             "messages": messages,
         }
 
+        # 可选：要求 JSON 格式输出
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
 
+        # 发送 POST 请求到 ARK 的 chat/completions 端点
         response = self._client.post(
             f"{self._config.base_url}/chat/completions",
             headers=headers,
             json=payload,
         )
-        response.raise_for_status()
+        response.raise_for_status()  # 非 2xx 状态码直接抛出异常
 
+        # 从响应中提取生成的文本内容
         data = response.json()
         return data["choices"][0]["message"]["content"]
 
     def close(self) -> None:
+        """关闭 HTTP 客户端连接"""
         self._client.close()
 
 
 class OpenAICompatibleClient(LLMClientBase):
-    """OpenAI 兼容 API 客户端"""
+    """OpenAI 兼容 API 客户端
+
+    支持所有遵循 OpenAI Chat Completions API 格式的后端，包括：
+    - 官方 OpenAI API
+    - 各种开源模型的 API 服务（如 vLLM、Ollama 等）
+    - 推理模型（如 qwen、glm-4.6），额外处理 <think> 标签和 reasoning_content
+    """
 
     def __init__(self, config: OpenAIConfig):
+        """初始化 OpenAI 兼容客户端
+
+        Args:
+            config: OpenAI 配置对象，包含 api_key、base_url、model 等
+        """
         self._config = config
+        # 创建 HTTP 客户端，超时 120 秒
         self._client = httpx.Client(timeout=120)
 
     def chat(self, messages: list[dict], json_mode: bool = False) -> str:
+        """调用 OpenAI 兼容 API 发送聊天请求
+
+        特殊处理：
+        1. 推理模型兼容：优先取 content，若为空则取 reasoning_content
+        2. <think> 标签剥离：qwen 等推理模型会在 content 中包含思考过程，需要去掉
+
+        Args:
+            messages: 对话消息列表
+            json_mode: 是否要求 JSON 格式输出
+
+        Returns:
+            LLM 生成的文本内容（已去除思考标签）
+        """
+        # 构造 HTTP 请求头
         headers = {
             "Authorization": f"Bearer {self._config.api_key}",
             "Content-Type": "application/json",
         }
 
+        # 构造请求体
         payload: dict[str, Any] = {
-            "model": self._config.model,
+            "model": self._config.model,  # OpenAI 使用 model 字段
             "messages": messages,
-            "max_tokens": 4096,
+            "max_tokens": 4096,  # 限制最大输出长度
         }
 
+        # 可选：要求 JSON 格式输出
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
 
+        # 发送 POST 请求
         response = self._client.post(
             f"{self._config.base_url}/chat/completions",
             headers=headers,
@@ -92,24 +173,46 @@ class OpenAICompatibleClient(LLMClientBase):
 
         data = response.json()
         msg = data["choices"][0]["message"]
-        # 兼容推理模型（如 glm-4.6）：优先取 content，若为空则取 reasoning_content
+
+        # 推理模型兼容处理：有些模型将主要内容放在 reasoning_content 字段
         content = msg.get("content")
         if not content:
             content = msg.get("reasoning_content", "")
-        # 剥离 <think>...</think> 标签（qwen 等推理模型会在 content 中包含思考过程）
+
+        # 剥离 <think>...</think> 标签
+        # qwen 等推理模型会在 content 中嵌入思考过程（<think>推理过程</think>实际输出）
+        # 需要去掉思考过程，只保留实际输出
         if content and "<think>" in content:
             import re as _re
             content = _re.sub(r"<think>.*?</think>\s*", "", content, flags=_re.DOTALL)
         return content
 
     def close(self) -> None:
+        """关闭 HTTP 客户端连接"""
         self._client.close()
 
 
-class LLMEngine:
-    """LLM 推理引擎（按 blueprint 1.3 节定义）"""
+# =============================================================================
+# LLM 推理引擎
+# =============================================================================
 
+class LLMEngine:
+    """LLM 推理引擎（按 blueprint 1.3 节定义）
+
+    负责：
+    1. 根据配置选择 LLM 后端（ARK 或 OpenAI）
+    2. 构造 System Prompt（嵌入 XPU 建议、当前观测等上下文）
+    3. 调用 LLM 生成动作决策
+    4. 解析 LLM 输出为结构化的 AgentAction
+    5. 适配 XPU 命令（将通用建议适配到具体仓库环境）
+    """
+
+    # =========================================================================
     # System Prompt 模板（按 blueprint 3.2 节定义）
+    # =========================================================================
+    # 此模板定义了 Agent 可用的所有动作类型及其使用规则。
+    # 占位符 {cwd}、{os_info}、{formatted_xpu_suggestions} 在运行时填充。
+    # 使用 {{ }} 转义大括号，避免被 .format() 误解析。
     SYSTEM_PROMPT_TEMPLATE = """You are an expert DevOps agent tailored for environment setup.
 You have access to a Linux terminal and an external eXPerience Unit (XPU).
 
@@ -203,8 +306,15 @@ You MUST respond in JSON format with this schema:
 """
 
     def __init__(self):
+        """初始化 LLM 推理引擎
+
+        根据项目配置（LLM_PROVIDER 环境变量）选择对应的 LLM 后端：
+        - "ark"：使用字节 ARK API（通过 ARKClient）
+        - "openai"：使用 OpenAI 兼容 API（通过 OpenAICompatibleClient）
+        """
         config = get_config()
 
+        # 根据配置选择 LLM 后端
         if config.llm_provider == "ark":
             self._client = ARKClient(config.ark)
             logger.info("使用 ARK LLM 客户端")
@@ -216,12 +326,30 @@ You MUST respond in JSON format with this schema:
         else:
             raise ValueError(f"不支持的 LLM 提供商: {config.llm_provider}")
 
+    # =========================================================================
+    # XPU 建议格式化
+    # =========================================================================
+
     def _format_xpu_suggestions(
         self,
         suggestions: list[XPUSuggestion],
-        failed_ids: set[str],
+        tried_ids: set[str],
     ) -> str:
-        """格式化 XPU 建议为两层文本：参考知识 + 可执行方案"""
+        """格式化 XPU 建议为两层文本，嵌入 System Prompt
+
+        两层结构设计意图：
+        - Layer 1（Reference Knowledge）：所有建议的自然语言描述
+          LLM 可以参考这些思路自行编写 SHELL_COMMAND
+        - Layer 2（Executable Fixes）：commands 非空的可执行建议
+          LLM 可以直接通过 TRY_XPU_SUGGESTION 调用执行
+
+        Args:
+            suggestions: 从 XPU 知识库检索到的建议列表
+            tried_ids: 已尝试的建议 ID 集合（跳过这些建议）
+
+        Returns:
+            格式化后的文本，嵌入 System Prompt 的 {formatted_xpu_suggestions} 位置
+        """
         if not suggestions:
             return "No XPU knowledge available."
 
@@ -229,16 +357,19 @@ You MUST respond in JSON format with this schema:
         exec_lines = []   # Layer 2：commands 非空的可执行建议
 
         for s in suggestions:
-            if s.id in failed_ids:
-                continue  # 跳过已失败的建议
-            # Layer 1：始终展示自然语言建议
+            if s.id in tried_ids:
+                continue  # 跳过已尝试的建议，避免 LLM 重复选择
+
+            # Layer 1：始终展示自然语言建议（description 是 advice_nl 的拼接）
             ref_lines.append(f"- [{s.id}] {s.description}")
-            # Layer 2：只有 commands 非空才展示为可执行选项
+
+            # Layer 2：只有 commands 非空时才展示为可执行选项
             if s.commands:
                 exec_lines.append(
                     f"  [ID: {s.id}] Commands: {s.commands} (confidence: {s.confidence:.2f})"
                 )
 
+        # 组装两层文本
         parts = []
         if ref_lines:
             parts.append(
@@ -252,6 +383,10 @@ You MUST respond in JSON format with this schema:
             )
         return "\n\n".join(parts) if parts else "No applicable XPU knowledge."
 
+    # =========================================================================
+    # 主决策接口
+    # =========================================================================
+
     def generate_action(
         self,
         history: list[dict],
@@ -259,31 +394,53 @@ You MUST respond in JSON format with this schema:
         cwd: str = "/workspace/repo",
         os_info: str = "Ubuntu 22.04",
         last_error: str | None = None,
-        failed_suggestion_ids: set[str] | None = None,
+        tried_suggestion_ids: set[str] | None = None,
     ) -> AgentAction:
-        """生成下一步动作（按 blueprint 1.3 节定义）"""
+        """生成下一步动作（按 blueprint 1.3 节定义）
 
-        if failed_suggestion_ids is None:
-            failed_suggestion_ids = set()
+        完整流程：
+        1. 构造 System Prompt（填充 cwd、os_info、XPU 建议）
+        2. 将最近 10 条历史记录添加为 assistant/user 消息对
+        3. 添加当前观测（last_error）作为最终 user 消息
+        4. 调用 LLM API（JSON mode）
+        5. 解析 LLM 响应为 AgentAction
 
-        # 构造 System Prompt
+        Args:
+            history: Agent 历史记录（action + result 对）
+            xpu_suggestions: 当前检索到的 XPU 建议
+            cwd: 当前工作目录
+            os_info: 操作系统信息
+            last_error: 最近一次错误信息
+            tried_suggestion_ids: 已尝试的建议 ID 集合（无论成功失败）
+
+        Returns:
+            结构化的 AgentAction 对象
+        """
+        if tried_suggestion_ids is None:
+            tried_suggestion_ids = set()
+
+        # === 1. 构造 System Prompt ===
+        # 将 XPU 建议、当前目录、OS 信息等填入模板
         system_prompt = self.SYSTEM_PROMPT_TEMPLATE.format(
             cwd=cwd,
             os_info=os_info,
             formatted_xpu_suggestions=self._format_xpu_suggestions(
-                xpu_suggestions, failed_suggestion_ids
+                xpu_suggestions, tried_suggestion_ids
             ),
         )
 
         messages = [{"role": "system", "content": system_prompt}]
 
-        # 添加历史记录
+        # === 2. 添加历史记录 ===
+        # 取最近 10 条历史，转为 assistant（动作）+ user（执行结果）消息对
         for entry in history[-10:]:
+            # assistant 消息：Agent 之前的动作决策
             if "action" in entry:
                 messages.append({
                     "role": "assistant",
                     "content": json.dumps(entry["action"], ensure_ascii=False),
                 })
+            # user 消息：命令执行结果（模拟为 user 输入供 LLM 参考）
             if "result" in entry:
                 result = entry["result"]
                 content = f"命令执行结果:\n退出码: {result.get('exit_code', 'N/A')}\n"
@@ -293,20 +450,21 @@ You MUST respond in JSON format with this schema:
                     content += f"错误: {result['stderr']}\n"
                 messages.append({"role": "user", "content": content})
 
-        # 添加当前观测
+        # === 3. 添加当前观测 ===
+        # 最终 user 消息：如果有错误则包含错误信息，否则提示分析当前状态
         user_content = "请分析当前状态并决定下一步动作。"
         if last_error:
             user_content = f"Last Error:\n{last_error}\n\n请分析错误原因并决定下一步动作。"
 
         messages.append({"role": "user", "content": user_content})
 
-        # ========== 记录 LLM 完整输入 ==========
+        # === 记录 LLM 完整输入（调试用）===
         logger.info("=" * 60)
         logger.info("LLM 输入 (Full Prompt)")
         logger.info("=" * 60)
         for i, msg in enumerate(messages):
             logger.info(f"[{i}] role={msg['role']}")
-            # 对于长消息进行截断显示
+            # 对于过长的消息进行截断显示，避免日志文件过大
             content = msg["content"]
             if len(content) > 2000:
                 logger.info(f"    content (truncated): {content[:1000]}...")
@@ -315,66 +473,87 @@ You MUST respond in JSON format with this schema:
                 logger.info(f"    content: {content}")
         logger.info("=" * 60)
 
-        # 调用 LLM
+        # === 4. 调用 LLM ===
+        # json_mode=True 要求 LLM 以 JSON 格式输出
         response = self._client.chat(messages, json_mode=True)
 
-        # ========== 记录 LLM 完整输出 ==========
+        # === 记录 LLM 完整输出（调试用）===
         logger.info("=" * 60)
         logger.info("LLM 输出 (Raw Response)")
         logger.info("=" * 60)
         logger.info(response)
         logger.info("=" * 60)
 
-        # 解析响应
+        # === 5. 解析响应 ===
         return self._parse_response(response, xpu_suggestions)
+
+    # =========================================================================
+    # 响应解析
+    # =========================================================================
 
     def _parse_response(
         self,
         response: str,
         xpu_suggestions: list[XPUSuggestion],
     ) -> AgentAction:
-        """解析 LLM 响应为 AgentAction"""
-        # 尝试提取 JSON
+        """解析 LLM 响应为结构化的 AgentAction
+
+        支持两种格式：
+        1. 纯 JSON 文本（理想情况）
+        2. 包裹在 ```json ... ``` markdown 代码块中的 JSON
+
+        Args:
+            response: LLM 原始输出文本
+            xpu_suggestions: 当前的 XPU 建议列表（供上下文关联）
+
+        Returns:
+            解析后的 AgentAction 对象
+
+        Raises:
+            ValueError: 无法解析为 JSON 时抛出
+        """
+        # 尝试直接解析 JSON
         try:
             data = json.loads(response)
         except json.JSONDecodeError:
-            # 尝试从 markdown 代码块中提取
+            # 回退方案：从 markdown 代码块中提取 JSON
             match = re.search(r"```(?:json)?\s*(.*?)\s*```", response, re.DOTALL)
             if match:
                 data = json.loads(match.group(1))
             else:
                 raise ValueError(f"无法解析 LLM 响应为 JSON: {response[:200]}")
 
-        action_type_str = data.get("action_type", "SHELL_COMMAND")
-        content = data.get("content", {})
-        thought = data.get("thought", "")
+        # 提取 LLM 输出的三个核心字段
+        action_type_str = data.get("action_type", "SHELL_COMMAND")  # 动作类型
+        content = data.get("content", {})  # 动作内容（命令、建议 ID 等）
+        thought = data.get("thought", "")  # LLM 的思考过程
 
-        # 映射动作类型
+        # 根据动作类型字符串映射为对应的 AgentAction 对象
         if action_type_str == "SHELL_COMMAND":
             return AgentAction(
                 action_type=ActionType.SHELL_COMMAND,
                 thought=thought,
-                command=content.get("command"),
+                command=content.get("command"),  # 要执行的 shell 命令
             )
         elif action_type_str == "TRY_XPU_SUGGESTION":
             return AgentAction(
                 action_type=ActionType.TRY_XPU_SUGGESTION,
                 thought=thought,
-                xpu_suggestion_id=content.get("xpu_suggestion_id"),
-                reasoning=content.get("reasoning"),
+                xpu_suggestion_id=content.get("xpu_suggestion_id"),  # XPU 建议 ID
+                reasoning=content.get("reasoning"),  # 选择该建议的理由
             )
         elif action_type_str == "FINISH":
             return AgentAction(
                 action_type=ActionType.FINISH,
                 thought=thought,
-                message=content.get("message", "任务完成"),
+                message=content.get("message", "任务完成"),  # 完成消息
             )
         elif action_type_str == "SET_ENV":
             return AgentAction(
                 action_type=ActionType.SET_ENV,
                 thought=thought,
-                env_key=content.get("env_key"),
-                env_value=content.get("env_value"),
+                env_key=content.get("env_key"),    # 环境变量名
+                env_value=content.get("env_value"), # 环境变量值
             )
         elif action_type_str == "ROLLBACK_ENV":
             return AgentAction(
@@ -387,7 +566,7 @@ You MUST respond in JSON format with this schema:
                 thought=thought,
             )
         else:
-            # 默认作为 SHELL_COMMAND 处理
+            # 未知动作类型：降级为 SHELL_COMMAND 处理
             logger.warning(f"未知动作类型: {action_type_str}，默认作为 SHELL_COMMAND")
             return AgentAction(
                 action_type=ActionType.SHELL_COMMAND,
@@ -395,8 +574,12 @@ You MUST respond in JSON format with this schema:
                 command=content.get("command") or data.get("command"),
             )
 
-    # ---- XPU 建议适配：LLM 根据经验思路 + 当前上下文生成命令 ----
+    # =========================================================================
+    # XPU 建议适配（方案 A：LLM 根据经验思路生成命令）
+    # =========================================================================
 
+    # XPU 适配专用 System Prompt
+    # 告诉 LLM：参考历史经验的修复思路，结合当前仓库的具体情况，生成适配后的命令
     ADAPT_XPU_PROMPT = """你是一名资深 DevOps 工程师。现在给你一条来自历史经验库的环境修复建议（advice_nl），以及当前仓库的具体错误信息和环境状态。
 
 你的任务：参考建议思路，结合当前仓库的具体情况（错误信息、OS、工作目录等），生成**适配后的可直接执行的 shell 命令**。
@@ -418,20 +601,30 @@ You MUST respond in JSON format with this schema:
         cwd: str,
         os_info: str,
     ) -> list[str]:
-        """根据 XPU 建议思路 + 当前上下文，让 LLM 生成适配后的命令列表。
+        """根据 XPU 建议思路 + 当前上下文，让 LLM 生成适配后的命令列表
+
+        核心理念：XPU 知识库中存储的是通用修复思路（advice_nl），
+        但具体的包名、版本号等需要根据当前仓库的实际情况调整。
+        本方法让 LLM 扮演"适配器"角色，将通用思路转化为具体可执行的命令。
+
+        示例：
+        - advice_nl: ["降级 numpy 版本以兼容旧 API"]
+        - last_error: "numpy 1.24 has no attribute 'float'"
+        - LLM 生成: ["pip install numpy==1.23.5"]
 
         Args:
-            advice_nl: XPU 经验的自然语言修复建议
+            advice_nl: XPU 经验的自然语言修复建议列表
             last_error: 当前仓库的具体错误信息
             cwd: 当前工作目录
             os_info: 操作系统信息
 
         Returns:
-            LLM 生成的适配命令列表
+            LLM 生成的适配命令列表。解析失败时返回空列表。
         """
+        # 构造 user 消息：将 advice_nl + 上下文打包为 JSON
         user_payload = json.dumps({
             "advice_nl": advice_nl,
-            "current_error": last_error[:3000] if last_error else "",
+            "current_error": last_error[:3000] if last_error else "",  # 截断过长错误信息
             "cwd": cwd,
             "os_info": os_info,
         }, ensure_ascii=False)
@@ -441,23 +634,27 @@ You MUST respond in JSON format with this schema:
             {"role": "user", "content": user_payload},
         ]
 
+        # 记录 LLM 输入（调试用）
         logger.info("=" * 60)
         logger.info("LLM 适配 XPU 命令 (输入)")
         logger.info(f"  advice_nl: {advice_nl}")
         logger.info(f"  error: {(last_error or '')[:200]}...")
         logger.info("=" * 60)
 
+        # 调用 LLM 生成适配命令
         response = self._client.chat(messages, json_mode=True)
 
+        # 记录 LLM 输出（调试用）
         logger.info("=" * 60)
         logger.info("LLM 适配 XPU 命令 (输出)")
         logger.info(response)
         logger.info("=" * 60)
 
-        # 解析
+        # 解析 LLM 输出为命令列表
         try:
             data = json.loads(response)
         except json.JSONDecodeError:
+            # 回退：从 markdown 代码块中提取 JSON
             match = re.search(r"```(?:json)?\s*(.*?)\s*```", response, re.DOTALL)
             if match:
                 data = json.loads(match.group(1))
@@ -473,7 +670,11 @@ You MUST respond in JSON format with this schema:
         logger.info(f"LLM 生成 {len(commands)} 条适配命令: {commands}")
         return commands
 
+    # =========================================================================
+    # 生命周期管理
+    # =========================================================================
+
     def close(self) -> None:
-        """关闭 LLM 客户端"""
+        """关闭 LLM 客户端（释放 HTTP 连接）"""
         if hasattr(self._client, "close"):
             self._client.close()

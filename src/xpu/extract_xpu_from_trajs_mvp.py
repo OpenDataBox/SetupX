@@ -1,55 +1,98 @@
-"""从 EnvBench 轨迹中抽取环境经验 XPU 的 MVP 脚本 (Repo2Run 适配版)。"""
+"""从 EnvBench / Repo2Run 轨迹中抽取环境经验 XPU 的 MVP 脚本。
 
-import argparse
-import json
-import os
-import re
-from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+本模块是 XPU 提取流程的核心实现，支持从 Agent 执行轨迹（JSONL 格式）中
+自动抽取可复用的环境配置经验。
 
-import requests
-from dotenv import load_dotenv
-from tqdm import tqdm
+提取流程（四阶段）：
+1. 加载轨迹文件（iter_traj_files → load_traj）
+2. 启发式筛选（heuristic_stats_for_traj → heuristic_is_candidate）
+   - 统计环境命令数、错误关键词数等指标
+   - 根据评分决定是否值得送 LLM 提取
+3. LLM 提取（build_traj_prompt → openai_compatible_chat_completions）
+   - 构造 prompt 发给 LLM，让 LLM 分析轨迹并生成结构化 XPU
+4. 输出结果（JSONL 格式，每行一条 XPU）
+
+支持的轨迹格式：
+- EnvBench 格式：包含 node="commands_history" 的结构化轨迹
+- Repo2Run 格式：Markdown 代码块中的 bash 命令
+- 本项目 Agent 格式：JSON 格式的 SHELL_COMMAND 动作
+"""
+
+import argparse  # 命令行参数解析
+import json  # JSON 序列化/反序列化
+import os  # 环境变量
+import re  # 正则表达式
+from pathlib import Path  # 路径操作
+from typing import Any, Dict, Iterable, List, Tuple  # 类型标注
+
+import requests  # HTTP 请求（调用 LLM API）
+from dotenv import load_dotenv  # 加载 .env 文件中的环境变量
+from tqdm import tqdm  # 进度条
 
 
+# ============================================================================
+# 默认配置
+# ============================================================================
+
+# 项目根目录（向上两级：extract_xpu_from_trajs_mvp.py → xpu/ → src/）
 ROOT_DIR = Path(__file__).resolve().parents[1]
+# 默认轨迹目录
 DEFAULT_TRAJ_DIR = ROOT_DIR / "tmp" / "traj_py_subset_50_kimi"
+# 默认输出文件路径
 DEFAULT_OUTPUT = ROOT_DIR / "xpuExtract" / "outputs" / "traj_xpu_mvp.jsonl"
 
-# LLM 调用相关默认配置
+# LLM 调用相关默认配置（可通过环境变量覆盖）
 DEFAULT_LLM_MODEL = os.environ.get("XPU_EXTRACT_MODEL", os.environ.get("MOONSHOT_MODEL", "gpt-4o-2024-05-13"))
-DEFAULT_API_KEY_ENV = os.environ.get("XPU_EXTRACT_API_KEY_ENV", "OPENAI_API_KEY")
-DEFAULT_BASE_URL_ENV = os.environ.get("XPU_EXTRACT_BASE_URL_ENV", "OPENAI_BASE_URL")
-DEFAULT_TIMEOUT_SEC = int(os.environ.get("XPU_EXTRACT_TIMEOUT", "60"))
+DEFAULT_API_KEY_ENV = os.environ.get("XPU_EXTRACT_API_KEY_ENV", "OPENAI_API_KEY")  # API Key 对应的环境变量名
+DEFAULT_BASE_URL_ENV = os.environ.get("XPU_EXTRACT_BASE_URL_ENV", "OPENAI_BASE_URL")  # Base URL 对应的环境变量名
+DEFAULT_TIMEOUT_SEC = int(os.environ.get("XPU_EXTRACT_TIMEOUT", "60"))  # API 调用超时秒数
 
-# 启发式关键词
+# 启发式关键词：用于判断轨迹中是否包含环境相关错误
 ERROR_KEYWORDS = [
-    "ModuleNotFoundError",
-    "ImportError",
-    "No module named",
-    "cannot import name",
-    "Could not find a version",
-    "command not found",
-    "Permission denied",
-    "error:",
-    "Error:",
-    "Traceback",
-    "failed with exit code"
+    "ModuleNotFoundError",  # Python 模块未找到
+    "ImportError",  # Python 导入错误
+    "No module named",  # Python 模块缺失
+    "cannot import name",  # Python 导入名称错误
+    "Could not find a version",  # pip 找不到版本
+    "command not found",  # 系统命令未安装
+    "Permission denied",  # 权限不足
+    "error:",  # 通用错误标记
+    "Error:",  # 通用错误标记（首字母大写）
+    "Traceback",  # Python 异常回溯
+    "failed with exit code"  # 命令执行失败
 ]
 
+# 环境相关命令关键词：用于判断轨迹中是否执行了环境配置命令
 ENV_CMD_KEYWORDS = [
-    "pip install",
-    "poetry install",
-    "apt-get install",
-    "conda install",
-    "python setup.py"
+    "pip install",  # pip 包安装
+    "poetry install",  # poetry 依赖安装
+    "apt-get install",  # 系统包安装
+    "conda install",  # conda 包安装
+    "python setup.py"  # setuptools 安装
 ]
 
+
+# ============================================================================
+# 工具函数
+# ============================================================================
 
 def get_env_or_raise(name: str) -> str:
+    """获取必需的环境变量，不存在时抛出异常
+
+    特殊降级逻辑：如果找不到 MOONSHOT_API_KEY，会尝试回退到 OPENAI_API_KEY。
+
+    Args:
+        name: 环境变量名
+
+    Returns:
+        环境变量值
+
+    Raises:
+        RuntimeError: 环境变量未设置
+    """
     val = os.environ.get(name)
     if not val:
-        # 降级尝试：如果是 Kimi 的key没找到，试试通用的
+        # 降级尝试：Kimi 的 key 没找到时试试通用的 OpenAI key
         if name == "MOONSHOT_API_KEY":
             val = os.environ.get("OPENAI_API_KEY")
     if not val:
@@ -65,31 +108,52 @@ def openai_compatible_chat_completions(
     timeout_sec: int,
     response_format_json: bool = True,
 ) -> Dict[str, Any]:
-    """调用 OpenAI 兼容的 Chat Completions API。"""
-    # 修复：ARK 使用 v3，不要强行加 v1
+    """调用 OpenAI 兼容的 Chat Completions API
+
+    支持 OpenAI、ARK（火山引擎）、Kimi 等兼容 API。
+
+    Args:
+        model: 模型名称
+        messages: 对话消息列表
+        api_key: API Key
+        base_url: API Base URL
+        timeout_sec: 请求超时秒数
+        response_format_json: 是否要求 JSON 格式输出
+
+    Returns:
+        API 响应的完整 JSON 字典
+
+    Raises:
+        RuntimeError: API 返回 HTTP 4xx/5xx 错误
+    """
+    # 修复 Base URL：ARK 使用 v3，不要强行加 v1
     if "v1" not in base_url and "v3" not in base_url and not base_url.endswith("/"):
         base_url += "/v1"
-    url = base_url.rstrip("/") + "/chat/completions"
-    
-    # DEBUG PRINT
+    url = base_url.rstrip("/") + "/chat/completions"  # 拼接完整 API 路径
+
+
+    # 调试日志：打印请求信息（API Key 只显示前 8 位）
     masked_key = api_key[:8] + "..." if api_key else "None"
     print(f"[DEBUG] LLM Request URL: {url}")
     print(f"[DEBUG] LLM API Key: {masked_key}")
     print(f"[DEBUG] LLM Model: {model}")
 
+    # 构造 HTTP 请求头
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
+    # 构造请求体
     payload: Dict[str, Any] = {
         "model": model,
         "messages": messages,
-        "temperature": 0.0,
-        "stream": False,
+        "temperature": 0.0,  # 使用确定性输出
+        "stream": False,  # 不使用流式输出
     }
     if response_format_json:
-        payload["response_format"] = {"type": "json_object"}
-    
+        payload["response_format"] = {"type": "json_object"}  # 要求 JSON 格式输出
+
+    # 发送 HTTP POST 请求
     resp = requests.post(url, headers=headers, data=json.dumps(payload), timeout=timeout_sec)
     if resp.status_code >= 400:
         raise RuntimeError(f"LLM HTTP {resp.status_code}: {resp.text[:500]}")
@@ -97,74 +161,108 @@ def openai_compatible_chat_completions(
 
 
 def parse_llm_json(s: str) -> Dict[str, Any]:
+    """解析 LLM 输出中的 JSON
+
+    处理多种 LLM 输出格式：
+    - 带 BOM 前缀的 JSON
+    - 包裹在 ```json ... ``` 中的 JSON
+    - 纯 JSON 字符串
+    """
     s = s.strip()
+    # 移除 BOM（Byte Order Mark）前缀
     if s.startswith("\ufeff"):
         s = s.lstrip("\ufeff")
+    # 移除 Markdown 代码块包裹
     if s.startswith("```"):
         if s.startswith("```json"):
-            s = s[len("```json"):].strip()
+            s = s[len("```json"):].strip()  # 去掉 ```json 前缀
         else:
-            s = s[3:].strip()
+            s = s[3:].strip()  # 去掉 ``` 前缀
         if s.endswith("```"):
-            s = s[:-3].strip()
+            s = s[:-3].strip()  # 去掉 ``` 后缀
     return json.loads(s)
 
 
 def truncate(text: Any, max_len: int) -> str:
+    """截断过长文本，保留头尾各一半"""
     if text is None:
         return ""
     text = str(text)
     if len(text) <= max_len:
         return text
-    keep = max_len // 2
+    keep = max_len // 2  # 头尾各保留一半
     return text[:keep] + "\n... [TRUNCATED] ...\n" + text[-keep:]
 
 
 def load_llm_config_from_env() -> Dict[str, Any]:
+    """从环境变量加载 LLM 调用配置"""
     return {
-        "llm_model": DEFAULT_LLM_MODEL,
-        "api_key_env_var": DEFAULT_API_KEY_ENV,
-        "base_url_env_var": DEFAULT_BASE_URL_ENV,
-        "timeout_sec": DEFAULT_TIMEOUT_SEC,
-        "llm_language": "zh",
+        "llm_model": DEFAULT_LLM_MODEL,  # LLM 模型名称
+        "api_key_env_var": DEFAULT_API_KEY_ENV,  # API Key 对应的环境变量名
+        "base_url_env_var": DEFAULT_BASE_URL_ENV,  # Base URL 对应的环境变量名
+        "timeout_sec": DEFAULT_TIMEOUT_SEC,  # 请求超时秒数
+        "llm_language": "zh",  # 输出语言
     }
 
 
+# ============================================================================
+# 轨迹文件加载与解析
+# ============================================================================
+
 def iter_traj_files(traj_path: Path) -> List[Path]:
+    """枚举轨迹文件列表
+
+    支持单文件或目录。目录模式下只返回文件名中包含 "@" 的 .jsonl 文件
+    （"@" 分隔 repo 名和 revision，如 "org__repo@abc123.jsonl"）。
+    """
     if traj_path.is_file():
-        return [traj_path]
+        return [traj_path]  # 单文件直接返回
     if traj_path.is_dir():
         return sorted([p for p in traj_path.glob("*.jsonl") if "@" in p.name])
     raise FileNotFoundError(str(traj_path))
 
 
 def parse_repo_revision_from_name(path: Path) -> Tuple[str, str]:
+    """从轨迹文件名解析仓库名和 revision
+
+    文件名格式：org__repo@revision.jsonl
+    例如："pytest-dev__pytest@abc123.jsonl" → ("pytest-dev/pytest", "abc123")
+    """
     name = path.name
     if not (name.endswith(".jsonl") and "@" in name):
         return "unknown/repo", "unknown"
-    base = name[: -len(".jsonl")]
+    base = name[: -len(".jsonl")]  # 去掉 .jsonl 后缀
     try:
-        repo_part, rev = base.rsplit("@", 1)
+        repo_part, rev = base.rsplit("@", 1)  # 按最后一个 "@" 分割
     except ValueError:
         return base, "unknown"
-    repo = repo_part.replace("__", "/")
+    repo = repo_part.replace("__", "/")  # 将 "__" 还原为 "/"
     return repo, rev
 
 
 def load_traj(path: Path) -> List[Dict[str, Any]]:
+    """加载轨迹文件（JSONL 格式，每行一个 JSON 对象）"""
     out: List[Dict[str, Any]] = []
     with path.open("r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
-            if not line: continue
+            if not line: continue  # 跳过空行
             try:
                 out.append(json.loads(line))
             except json.JSONDecodeError:
-                continue
+                continue  # 跳过 JSON 解析失败的行
     return out
 
 
+# ============================================================================
+# 启发式筛选：从轨迹中提取统计信息并评分
+# ============================================================================
+
 def _iter_strings(obj: Any) -> Iterable[str]:
+    """递归遍历嵌套数据结构中的所有字符串
+
+    支持字符串、字典、列表的递归遍历。
+    """
     if isinstance(obj, str):
         yield obj
     elif isinstance(obj, dict):
@@ -176,83 +274,90 @@ def _iter_strings(obj: Any) -> Iterable[str]:
 
 
 def extract_commands_history(traj: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    [Repo2Run 适配版 + JSON 适配]
-    从轨迹中提取命令。
-    支持:
-    1. Markdown code blocks: ```bash ... ```
-    2. JSON format: {"action_type": "SHELL_COMMAND", "content": {"command": "..."}}
+    """从轨迹中提取命令执行历史
+
+    支持三种轨迹格式：
+    1. EnvBench 格式：node="commands_history" 包含结构化命令列表
+    2. 本项目 Agent 格式：JSON 格式的 SHELL_COMMAND 动作
+    3. Repo2Run 格式：Markdown 代码块中的 bash 命令
     """
     cmds = []
-    
-    # 正则匹配 Markdown 代码块
+
+    # 正则匹配 Markdown 中的 bash 代码块
     bash_pattern = re.compile(r"```bash\s+(.*?)\s+```", re.DOTALL)
-    
+
     for item in traj:
-        # 如果有 explicit nodes (EnvBench style)
+        # 格式 1：EnvBench 的结构化命令历史节点
         if item.get("node") == "commands_history":
             raw = item.get("commands") or []
             if isinstance(raw, list):
-                return raw
-        
-        # 解析 content 字段
-        content = item.get("content", "")
-        role = item.get("role", "")
-        
-        # 只看 assistant 的输出
+                return raw  # 直接返回结构化命令列表
+
+        content = item.get("content", "")  # 消息内容
+        role = item.get("role", "")  # 消息角色
+
+        # 只解析 assistant 角色的输出（agent 的决策）
         if role == "assistant" and content:
-            # 1. 尝试解析 JSON 格式 (我们的 Agent)
+            # 格式 2：尝试解析 JSON 格式（本项目 Agent 的输出）
             try:
-                # 能够被解析为 JSON 的字符串
                 if isinstance(content, str) and content.strip().startswith("{"):
                     data = json.loads(content)
-                    # 检查是否包含 command
                     cmd = None
-                    # 形式 A: {"action_type": "SHELL_COMMAND", "content": {"command": "..."}}
                     if isinstance(data, dict):
                         inner_content = data.get("content")
                         if isinstance(inner_content, dict):
+                            # 形式 A: {"action_type": "SHELL_COMMAND", "content": {"command": "..."}}
                             cmd = inner_content.get("command")
-                        # 形式 B: {"command": "..."} (直接结构)
                         elif data.get("command"):
+                            # 形式 B: {"command": "..."} （直接结构）
                             cmd = data.get("command")
-                    
+
                     if cmd:
                         cmds.append({"command": cmd, "exit_code": 0})
-                        continue # 如果成功解析出 JSON 命令，就不必再正则匹配了
+                        continue  # 成功解析出 JSON 命令，跳过正则匹配
             except json.JSONDecodeError:
                 pass
 
-            # 2. 尝试正则匹配 (Repo2Run 兼容)
+            # 格式 3：正则匹配 Markdown bash 代码块（Repo2Run 兼容）
             matches = bash_pattern.findall(content)
             for match in matches:
                 clean_cmd = match.strip()
                 cmds.append({"command": clean_cmd, "exit_code": 0})
-                
+
     return cmds
 
 
 def heuristic_stats_for_traj(traj: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """统计轨迹的启发式特征
+
+    扫描轨迹中的所有文本和命令，统计：
+    - num_agent_steps: agent 步骤数
+    - num_error_keywords: 错误关键词出现次数
+    - num_commands: 总命令数
+    - num_env_commands: 环境相关命令数（pip install 等）
+    """
     num_agent_steps = 0
     num_error_keywords = 0
 
-    # 1. 扫描全文找错误
+    # 1. 扫描全文找错误关键词
     for item in traj:
-        # 兼容 role/node
+        # 统计 agent 步骤数（兼容 role 和 node 两种格式）
         if item.get("role") == "assistant" or item.get("node") == "agent":
             num_agent_steps += 1
-            
+
+        # 递归遍历所有文本字段，查找错误关键词
         for text in _iter_strings(item):
             t_low = text.lower()
             if any(kw.lower() in t_low for kw in ERROR_KEYWORDS):
                 num_error_keywords += 1
                 # break # 不要 break，统计所有
 
-    # 2. 扫描命令
+    # 2. 提取并统计命令
     cmds = extract_commands_history(traj)
     num_commands = len(cmds)
     num_env_commands = 0
 
+    # 统计环境相关命令数（pip install、apt-get install 等）
     for c in cmds:
         cmd_str = str(c.get("command", ""))
         cmd_low = cmd_str.lower()
@@ -268,24 +373,38 @@ def heuristic_stats_for_traj(traj: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 def heuristic_is_candidate(stats: Dict[str, Any]) -> Tuple[bool, float]:
-    """
-    [Repo2Run 调整版] 放宽筛选条件。
-    只要执行过命令，或者出现了错误关键词，就认为是候选。
+    """判断轨迹是否值得送 LLM 提取 XPU
+
+    评分规则：
+    - 有环境命令（pip install 等）→ +5 分
+    - 有错误关键词 → +5 分
+    - 执行过任何命令 → +1 分
+
+    当前阈值：score > 0 即为候选（非常宽松，只要执行过命令就会送 LLM）
     """
     score = 0.0
-    
+
+    # 有环境命令大幅加分（说明轨迹包含环境配置操作）
     if stats.get("num_env_commands", 0) >= 1:
         score += 5.0 # 大幅加分
+    # 有错误关键词大幅加分（说明轨迹中遇到了问题）
     if stats.get("num_error_keywords", 0) >= 1:
         score += 5.0 # 大幅加分
+    # 执行过命令小幅加分
     if stats.get("num_commands", 0) >= 1:
         score += 1.0
 
-    print(f"[DEBUG] Heuristic Stats: {stats}, Score: {score}")  # Added debug print
+    print(f"[DEBUG] Heuristic Stats: {stats}, Score: {score}")
 
-    # 只要有分就过
-    return score > 0, score
+    # [P1 优化] 阈值从 score > 0 提升到 score >= 6
+    # 要求至少同时包含环境命令(+5)和错误关键词(+5)，或其中之一加上命令(+1)
+    # 这样避免把纯探索性轨迹（只有命令没有环境操作）送 LLM 浪费 token
+    return score >= 6, score
 
+
+# ============================================================================
+# LLM 提取：构造 prompt 让 LLM 从轨迹中提取 XPU
+# ============================================================================
 
 def build_traj_prompt(
     repo: str,
@@ -294,26 +413,34 @@ def build_traj_prompt(
     stats: Dict[str, Any],
     cfg: Dict[str, Any],
 ) -> List[Dict[str, str]]:
+    """构造 XPU 提取的 LLM prompt
+
+    将轨迹中的命令历史和错误日志整理为结构化的 prompt，
+    让 LLM 分析轨迹并生成 XPU 经验条目。
+    """
+    # 提取并格式化命令历史
     cmds = extract_commands_history(traj)
     lines_cmds: List[str] = []
     for c in cmds:
         cmd_str = str(c.get("command", ""))
-        lines_cmds.append(f"$ {cmd_str}")
-    commands_text = truncate("\n".join(lines_cmds), 4000)
+        lines_cmds.append(f"$ {cmd_str}")  # 用 $ 前缀标记命令
+    commands_text = truncate("\n".join(lines_cmds), 4000)  # 截断到 4000 字符
 
+    # 提取错误日志片段（只看 system 和 user 角色的内容）
     error_lines: List[str] = []
     for item in traj:
-        # 提取 system 或 user (Observation) 里的错误
         # 我们的 Agent 将执行结果记录在 user 角色中
         if item.get("role") in ("system", "user"):
             text = item.get("content", "")
             if any(kw.lower() in text.lower() for kw in ERROR_KEYWORDS):
                 error_lines.append(text)
-                
+
+    # 如果错误日志太多，保留头 15 条 + 尾 10 条
     if len(error_lines) > 30:
         error_lines = error_lines[:15] + ["... [TRUNCATED] ..."] + error_lines[-10:]
     errors_text = truncate("\n".join(error_lines), 4000)
 
+    # 系统提示：定义 LLM 角色和任务要求
     system_text = (
         "你是一名资深 Python 项目环境配置与依赖问题专家。"
         "\n现在给你一个仓库在自动环境搭建时的完整 agent 轨迹（含执行的命令和报错日志）。"
@@ -328,13 +455,14 @@ def build_traj_prompt(
         "\n回答必须是严格的 JSON 对象，不包含任何多余文字。"
     )
 
+    # 用户输入：仓库信息 + 统计数据 + 命令历史 + 错误日志 + XPU schema
     user_payload: Dict[str, Any] = {
         "repository": repo,
         "revision": rev,
         "stats": stats,
-        "commands_history_text": commands_text,
-        "error_snippets_text": errors_text,
-        "xpu_schema": {
+        "commands_history_text": commands_text,  # 命令执行历史
+        "error_snippets_text": errors_text,  # 错误日志片段
+        "xpu_schema": {  # XPU 输出格式说明
             "id": "string，唯一标识，如 xpu_env_py_xxx",
             "context": {
                 "lang": "例如 python",
@@ -372,38 +500,57 @@ def build_traj_prompt(
     ]
 
 
+# ============================================================================
+# 主提取流程
+# ============================================================================
+
 def extract_xpu_from_trajs(
     traj_path: Path,
     output_jsonl: Path,
 ) -> None:
-    load_dotenv()
-    cfg = load_llm_config_from_env()
+    """从轨迹文件中批量提取 XPU 经验（主入口函数）
 
-    api_key = get_env_or_raise(cfg["api_key_env_var"])
+    完整流程：
+    1. 加载 .env 环境变量
+    2. 枚举所有轨迹文件
+    3. 对每个轨迹文件：启发式筛选 → LLM 提取 → 写入输出文件
+    4. 输出为 JSONL 格式（每行一条记录）
+    """
+    load_dotenv()  # 加载 .env 文件
+    cfg = load_llm_config_from_env()  # 加载 LLM 配置
+
+    api_key = get_env_or_raise(cfg["api_key_env_var"])  # 获取 API Key
     # 默认 Base URL 处理
     base_url = os.environ.get(cfg["base_url_env_var"]) or "https://api.openai.com/v1"
 
-    files = iter_traj_files(traj_path)
-    output_jsonl.parent.mkdir(parents=True, exist_ok=True)
+    files = iter_traj_files(traj_path)  # 枚举轨迹文件
+    output_jsonl.parent.mkdir(parents=True, exist_ok=True)  # 确保输出目录存在
 
     with output_jsonl.open("w", encoding="utf-8") as f_out:
         for path in tqdm(files, total=len(files), desc="从轨迹中提取 XPU"):
+            # 从文件名解析仓库名和 revision
             repo, rev = parse_repo_revision_from_name(path)
+            # 加载轨迹数据
             traj = load_traj(path)
+            # 启发式统计和筛选
             stats = heuristic_stats_for_traj(traj)
             is_candidate, score = heuristic_is_candidate(stats)
             stats["heuristic_score"] = score
             stats["heuristic_is_candidate"] = is_candidate
 
-            llm_decision: str = "heuristic_skip"
+            # 初始化 LLM 决策结果
+            llm_decision: str = "heuristic_skip"  # 默认被启发式筛选跳过
             llm_reason: str | None = None
             xpu_obj: Dict[str, Any] | None = None
             usage: Dict[str, Any] = {}
             error_info: str | None = None
 
+            # 通过启发式筛选的候选才送 LLM 提取
             if is_candidate:
                 try:
+                    # 构造 LLM prompt
                     messages = build_traj_prompt(repo, rev, traj, stats, cfg)
+                    # 调用 LLM API
                     raw = openai_compatible_chat_completions(
                         model=cfg["llm_model"],
                         messages=messages,
@@ -412,13 +559,13 @@ def extract_xpu_from_trajs(
                         timeout_sec=cfg["timeout_sec"],
                         response_format_json=True,
                     )
-                    content = raw["choices"][0]["message"]["content"]
-                    usage = raw.get("usage") or {}
-                    parsed = parse_llm_json(content)
+                    content = raw["choices"][0]["message"]["content"]  # 提取 LLM 输出
+                    usage = raw.get("usage") or {}  # token 使用统计
+                    parsed = parse_llm_json(content)  # 解析 JSON
                     llm_decision = str(parsed.get("decision") or "error")
                     llm_reason = parsed.get("reason")
                     if llm_decision == "xpu":
-                        # 兼容新格式 xpus (数组) 和旧格式 xpu (单条)
+                        # 兼容新格式 xpus（数组）和旧格式 xpu（单条）
                         xpu_list = parsed.get("xpus") or []
                         if not xpu_list:
                             single = parsed.get("xpu")
@@ -431,7 +578,7 @@ def extract_xpu_from_trajs(
                     llm_decision = "error"
                     error_info = str(e)
 
-            # 每条 XPU 输出为独立的一行（方便下游逐条处理）
+            # 写入输出文件：每条 XPU 独立一行（方便下游逐条处理）
             if llm_decision == "xpu" and xpu_list:
                 for xpu_obj in xpu_list:
                     out_obj = {
@@ -448,6 +595,7 @@ def extract_xpu_from_trajs(
                     }
                     f_out.write(json.dumps(out_obj, ensure_ascii=False) + "\n")
             else:
+                # 未提取到 XPU 的也记录一行（保留筛选/决策日志）
                 out_obj = {
                     "repository": repo,
                     "revision": rev,
@@ -463,10 +611,15 @@ def extract_xpu_from_trajs(
                 f_out.write(json.dumps(out_obj, ensure_ascii=False) + "\n")
 
 
+# ============================================================================
+# 命令行入口
+# ============================================================================
+
 def main() -> None:
+    """命令行入口：解析参数并执行 XPU 提取"""
     parser = argparse.ArgumentParser(description="从 EnvBench 轨迹中启发式筛选并通过 LLM 抽取 XPU 经验")
-    parser.add_argument("--traj", type=Path, default=DEFAULT_TRAJ_DIR)
-    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--traj", type=Path, default=DEFAULT_TRAJ_DIR)  # 轨迹文件/目录
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)  # 输出路径
     args = parser.parse_args()
 
     extract_xpu_from_trajs(Path(args.traj), Path(args.output))

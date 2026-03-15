@@ -160,7 +160,7 @@ class AgentState:
     completed: bool = False
     final_message: str | None = None
     last_error: str | None = None             # 最近的错误信息
-    failed_suggestions: set[str] = field(default_factory=set)  # 已失败的 XPU 建议 ID
+    tried_suggestions: set[str] = field(default_factory=set)  # 已尝试的 XPU 建议 ID（无论成功失败）
 
     def add_to_history(self, entry: dict[str, Any]) -> None:
         """添加历史记录"""
@@ -174,13 +174,13 @@ class AgentState:
         """获取最近 n 条历史记录"""
         return self.history[-n:]
 
-    def record_failed_suggestion(self, suggestion_id: str) -> None:
-        """记录失败的 XPU 建议，防止重试"""
-        self.failed_suggestions.add(suggestion_id)
+    def record_tried_suggestion(self, suggestion_id: str) -> None:
+        """记录已尝试的 XPU 建议，防止重复执行"""
+        self.tried_suggestions.add(suggestion_id)
 
-    def is_suggestion_failed(self, suggestion_id: str) -> bool:
-        """检查建议是否已失败"""
-        return suggestion_id in self.failed_suggestions
+    def is_suggestion_tried(self, suggestion_id: str) -> bool:
+        """检查建议是否已尝试过"""
+        return suggestion_id in self.tried_suggestions
 
 
 @dataclass
