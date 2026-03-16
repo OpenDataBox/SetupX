@@ -13,6 +13,7 @@
 - `configs/tools.example.json`：工具配置样例
 - `configs/repos_example.jsonl`：仓库清单样例
 - `prompts/repo_setup_task.txt`：统一任务提示词
+- `qwen_code/`：Qwen Code TypeScript SDK 包装器
 - `results/`：实验输出目录
 - `run_cli_benchmark.py`：批量运行实验
 - `summarize_results.py`：汇总成功率
@@ -82,6 +83,56 @@ cp experiment/configs/tools.example.json experiment/configs/tools.json
 - `{revision}`
 - `{task_prompt_path}`
 - `{task_prompt}`
+- `{repo_dir}`
+
+## Qwen Code 接入
+
+`qwen_code` 目前按官方 TypeScript SDK 方式接入，代码在 `experiment/qwen_code/`。调用时固定使用：
+
+- Node.js `>= 20.0.0`
+- sandbox 容器内可访问的 Qwen Code CLI
+- `permissionMode: "yolo"`
+- `authType: "openai"`
+- 根目录 `.env` 中的 `QWEN_CODE_API_KEY`
+- 根目录 `.env` 中的 `QWEN_CODE_BASE_URL`
+- 可选 `QWEN_CODE_MODEL`，默认 `qwen3-coder-plus`
+- Qwen Code 只在独立 Docker sandbox 容器中运行
+- 成功后直接输出 `container_id=<id>` 给统一 verifier 接管
+
+先准备 runner 镜像依赖：
+
+```bash
+cd experiment/qwen_code
+npm install
+```
+
+根目录 `.env` 至少需要：
+
+```bash
+QWEN_CODE_API_KEY=your_api_key
+QWEN_CODE_BASE_URL=https://your-openai-compatible-endpoint/v1
+QWEN_CODE_MODEL=qwen3-coder-plus
+QWEN_CODE_BASE_IMAGE=qwen-code-benchmark:latest
+QWEN_CODE_CLI_NPM_SPEC=@qwen-code/qwen-code@latest
+# 如果 qwen 不是 PATH 可直接找到，可显式指定完整路径
+QWEN_CODE_CLI_PATH=/full/path/to/qwen
+```
+
+包装器会为每个仓库：
+
+1. 先构建并缓存一份 `qwen_code` 基础镜像
+2. 每个仓库实验都从这份基础镜像启动一个新的独立 Docker 容器
+3. 只在该容器内 clone 仓库、运行 Qwen Code、执行依赖安装和验证
+4. 成功后输出 `container_id=<id>`，交给现有 `EnvironmentManager.from_container()` 和 `VerifierAgent.verify()` 复用
+5. 失败时自动删除该 sandbox 容器，避免污染宿主机
+
+也就是说，镜像级别是按工具复用的，容器级别是按 `tool + repo + run` 隔离的。
+
+官方 SDK 文档要求：
+
+- Node.js `>= 20.0.0`
+- Qwen Code `>= 0.4.0`（稳定版）已安装并在 PATH 中可访问
+- 如果你使用 `nvm`，应显式设置 `pathToQwenExecutable` 为 `qwen` 二进制完整路径
 
 ## 运行命令
 

@@ -203,6 +203,7 @@ def run_one(
             "revision": revision,
             "task_prompt_path": str(prompt_path),
             "task_prompt": task_prompt,
+            "repo_dir": str(repo_dir),
         },
     )
 
@@ -270,6 +271,7 @@ def run_one(
         "judge_mode": tool.get("judge_mode", "return_code"),
         "log_path": str(log_path),
         "command": command,
+        "repo_dir": str(repo_dir),
         "verify_attempted": verify_meta["verify_attempted"],
         "verify_success": verify_meta["verify_success"],
         "verify_result": verify_meta["verify_result"],
