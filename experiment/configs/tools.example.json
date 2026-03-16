@@ -1,0 +1,38 @@
+[
+  {
+    "name": "claude_code",
+    "enabled": false,
+    "command_template": "请填写 claude code 的真实命令模板",
+    "output_mode": "container",
+    "verify_enabled": true,
+    "container_id_pattern": "container_id=([a-f0-9]{12,64})",
+    "container_work_dir": "/workspace",
+    "destroy_container_after_verify": false,
+    "judge_mode": "return_code",
+    "success_patterns": []
+  },
+  {
+    "name": "open_code",
+    "enabled": false,
+    "command_template": "请填写 open code 的真实命令模板",
+    "output_mode": "container",
+    "verify_enabled": true,
+    "container_id_pattern": "container_id=([a-f0-9]{12,64})",
+    "container_work_dir": "/workspace",
+    "destroy_container_after_verify": false,
+    "judge_mode": "return_code",
+    "success_patterns": []
+  },
+  {
+    "name": "qwen_code",
+    "enabled": false,
+    "command_template": "请填写 qwen code 的真实命令模板",
+    "output_mode": "container",
+    "verify_enabled": true,
+    "container_id_pattern": "container_id=([a-f0-9]{12,64})",
+    "container_work_dir": "/workspace",
+    "destroy_container_after_verify": false,
+    "judge_mode": "return_code",
+    "success_patterns": []
+  }
+]
