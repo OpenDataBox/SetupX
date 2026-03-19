@@ -13,6 +13,7 @@
 - `configs/tools.example.json`：工具配置样例
 - `configs/repos_example.jsonl`：仓库清单样例
 - `prompts/repo_setup_task.txt`：统一任务提示词
+- `opencode/`：OpenCode TypeScript SDK 包装器
 - `qwen_code/`：Qwen Code TypeScript SDK 包装器
 - `results/`：实验输出目录
 - `run_cli_benchmark.py`：批量运行实验
@@ -133,6 +134,53 @@ QWEN_CODE_CLI_PATH=/full/path/to/qwen
 - Node.js `>= 20.0.0`
 - Qwen Code `>= 0.4.0`（稳定版）已安装并在 PATH 中可访问
 - 如果你使用 `nvm`，应显式设置 `pathToQwenExecutable` 为 `qwen` 二进制完整路径
+
+## OpenCode 接入
+
+`open_code` 目前按官方 JavaScript/TypeScript SDK 方式接入，代码在 `experiment/opencode/`。调用时固定使用：
+
+- Node.js `>= 20.0.0`
+- 基础镜像内的 OpenCode SDK
+- Docker 容器内运行仓库配置
+- OpenCode 权限默认放开，对应实验里的 `yolo` 语义
+- 根目录 `.env` 中的 `OPENCODE_API_KEY`
+- 根目录 `.env` 中的 `OPENCODE_BASE_URL`
+- 根目录 `.env` 中的 `OPENCODE_MODEL`
+- 成功后直接输出 `container_id=<id>` 给统一 verifier 接管
+
+先准备 runner 镜像依赖：
+
+```bash
+cd experiment/opencode
+npm install
+```
+
+根目录 `.env` 至少需要：
+
+```bash
+OPENCODE_API_KEY=your_api_key
+OPENCODE_BASE_URL=https://your-openai-compatible-endpoint/v1
+OPENCODE_MODEL=qwen3-coder-plus
+OPENCODE_BASE_IMAGE=opencode-benchmark:latest
+OPENCODE_CLI_NPM_SPEC=opencode-ai@latest
+# 可选；不填时 launcher 会自动挑一个空闲端口
+OPENCODE_SERVER_PORT=
+```
+
+包装器会为每个仓库：
+
+1. 先构建并缓存一份 `open_code` 基础镜像
+2. 每个仓库实验都从这份基础镜像启动一个新的独立 Docker 容器
+3. 只在该容器内 clone 仓库、运行 OpenCode、执行依赖安装和验证
+4. 成功后输出 `container_id=<id>`，交给现有 `EnvironmentManager.from_container()` 和 `VerifierAgent.verify()` 复用
+5. 失败时自动删除该 sandbox 容器，避免污染宿主机
+
+OpenCode 官方 SDK 说明：
+
+- SDK 包名是 `@opencode-ai/sdk`
+- `createOpencode()` 会同时启动 server 和 client
+- 权限默认是允许的；实验里显式把 `bash` 和 `edit` 设为 `allow`，作为 `yolo` 等价配置
+- OpenAI 兼容接口应通过 `provider` 配置中的 `npm: "@ai-sdk/openai-compatible"`、`options.baseURL` 和 `options.apiKey` 接入
 
 ## 运行命令
 
