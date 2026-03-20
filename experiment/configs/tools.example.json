@@ -1,13 +1,13 @@
 [
   {
     "name": "claude_code",
-    "enabled": false,
-    "command_template": "请填写 claude code 的真实命令模板",
+    "enabled": true,
+    "command_template": "python experiment/claude_code/launch_claude_code.py --repo-url {repo_url} --repository {repository} --revision {revision} --task-file {task_prompt_path}",
     "output_mode": "container",
     "verify_enabled": true,
     "container_id_pattern": "container_id=([a-f0-9]{12,64})",
     "container_work_dir": "/workspace",
-    "destroy_container_after_verify": false,
+    "destroy_container_after_verify": true,
     "judge_mode": "return_code",
     "success_patterns": []
   },

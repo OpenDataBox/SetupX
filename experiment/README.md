@@ -13,6 +13,7 @@
 - `configs/tools.example.json`：工具配置样例
 - `configs/repos_example.jsonl`：仓库清单样例
 - `prompts/repo_setup_task.txt`：统一任务提示词
+- `claude_code/`：Claude Code 无头模式包装器
 - `opencode/`：OpenCode TypeScript SDK 包装器
 - `qwen_code/`：Qwen Code TypeScript SDK 包装器
 - `results/`：实验输出目录
@@ -134,6 +135,69 @@ QWEN_CODE_CLI_PATH=/full/path/to/qwen
 - Node.js `>= 20.0.0`
 - Qwen Code `>= 0.4.0`（稳定版）已安装并在 PATH 中可访问
 - 如果你使用 `nvm`，应显式设置 `pathToQwenExecutable` 为 `qwen` 二进制完整路径
+
+## Claude Code 接入
+
+`claude_code` 目前按你指定的 DMXAPI 方式接入，代码在 `experiment/claude_code/`。调用时固定使用：
+
+- Node.js `>= 20.0.0`
+- 基础镜像内通过 `npm install -g @anthropic-ai/claude-code` 安装 Claude Code
+- Docker 容器内运行仓库配置
+- `claude -p` 无头模式
+- 默认使用 `--output-format json`，减少长流式日志导致的收尾不稳定
+- `--dangerously-skip-permissions` 跳过权限确认，避免实验卡在交互提示
+- 根目录 `.env` 中的 `ANTHROPIC_AUTH_TOKEN`
+- 根目录 `.env` 中的 `ANTHROPIC_BASE_URL`
+- 可选 `CLAUDE_CODE_MODEL` 或 `ANTHROPIC_MODEL`
+- 如果未单独提供 Claude 配置，默认回退复用 `OPENCODE_API_KEY`、`OPENCODE_BASE_URL`、`OPENCODE_MODEL`
+- 成功后直接输出 `container_id=<id>` 给统一 verifier 接管
+
+先准备 runner 镜像依赖：
+
+```bash
+cd experiment/claude_code
+npm install
+```
+
+根目录 `.env` 至少需要：
+
+```bash
+ANTHROPIC_AUTH_TOKEN=your_api_key
+ANTHROPIC_BASE_URL=https://your-anthropic-compatible-endpoint
+CLAUDE_CODE_MODEL=qwen3-coder-plus
+CLAUDE_CODE_BASE_IMAGE=claude-code-benchmark:latest
+CLAUDE_CODE_CLI_NPM_SPEC=@anthropic-ai/claude-code
+CLAUDE_CODE_NPM_REGISTRY=https://registry.npmjs.org
+CLAUDE_CODE_OUTPUT_FORMAT=json
+```
+
+如果你希望直接复用现有 OpenCode 配置，也可以不额外新增 Claude 专属 key，`claude_code` 会自动回退到：
+
+```bash
+OPENCODE_API_KEY=...
+OPENCODE_BASE_URL=...
+OPENCODE_MODEL=...
+```
+
+如果你希望严格按 Claude Code 的模型环境变量控制，也可以补充：
+
+```bash
+ANTHROPIC_MODEL=qwen3-coder-plus
+ANTHROPIC_SMALL_FAST_MODEL=qwen3-coder-plus
+ANTHROPIC_DEFAULT_OPUS_MODEL=qwen3-coder-plus
+ANTHROPIC_DEFAULT_SONNET_MODEL=qwen3-coder-plus
+ANTHROPIC_DEFAULT_HAIKU_MODEL=qwen3-coder-plus
+```
+
+包装器会为每个仓库：
+
+1. 先构建并缓存一份 `claude_code` 基础镜像
+2. 每个仓库实验都从这份基础镜像启动一个新的独立 Docker 容器
+3. 只在该容器内 clone 仓库、写入 `~/.claude/settings.json`、运行 Claude Code、执行依赖安装和验证
+4. 成功后输出 `container_id=<id>`，交给现有 `EnvironmentManager.from_container()` 和 `VerifierAgent.verify()` 复用
+5. 失败时自动删除该 sandbox 容器，避免污染宿主机
+
+这里测到的是“Claude Code 前端 + 第三方 Anthropic 兼容网关 + 目标模型”的组合效果，不是官方 Claude 模型原生结果。
 
 ## OpenCode 接入
 
