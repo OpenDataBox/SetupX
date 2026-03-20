@@ -383,9 +383,37 @@ class EnvironmentManager:
         变量存入 _env_vars 字典，后续每次 exec_run 均通过
         Docker 原生 environment 参数注入，对整个 bash 进程及所有子命令可见。
         相比 shell prefix（KEY=VAL cmd），此方式不受 && 链分隔符影响。
+
+        注意：Docker environment 不会展开 shell 变量引用（如 $PATH），
+        因此需要在设置前先解析容器内的实际值进行替换。
         """
-        self._env_vars[key] = value
-        logger.info(f"设置环境变量: {key}={value}")
+        # 展开 value 中引用的 shell 变量（如 $PATH、${HOME}）
+        resolved_value = self._resolve_env_refs(value)
+        self._env_vars[key] = resolved_value
+        logger.info(f"设置环境变量: {key}={resolved_value}")
+
+    def _resolve_env_refs(self, value: str) -> str:
+        """展开 value 中的 $VAR / ${VAR} 引用为容器内实际值"""
+        import re
+        # 匹配 $VAR 或 ${VAR}
+        pattern = re.compile(r'\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?')
+        refs = pattern.findall(value)
+        if not refs:
+            return value
+
+        for var_name in set(refs):
+            # 优先从已设置的环境变量中取，否则从容器内读取
+            actual = self._env_vars.get(var_name)
+            if actual is None:
+                result = self.container.exec_run(
+                    cmd=["bash", "-c", f"echo -n ${var_name}"],
+                    demux=True,
+                )
+                actual = (result[1][0] or b"").decode("utf-8", errors="replace").strip()
+            # 替换 ${VAR} 和 $VAR 两种形式
+            value = value.replace(f"${{{var_name}}}", actual)
+            value = value.replace(f"${var_name}", actual)
+        return value
 
     def get_env(self, key: str) -> str | None:
         """获取已设置的环境变量值，不存在返回 None"""

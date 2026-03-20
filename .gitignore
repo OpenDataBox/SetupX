@@ -53,3 +53,7 @@ runs/
 data/trajectories/
 data/step1_logs/
 data/xpu_extracted/
+
+# 文档和输出（不入库）
+docs/
+output/

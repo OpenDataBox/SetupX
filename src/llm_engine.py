@@ -67,8 +67,8 @@ class ARKClient(LLMClientBase):
             config: ARK 配置对象，包含 api_key、base_url、deployment 等
         """
         self._config = config
-        # 创建 HTTP 客户端，超时 120 秒（LLM 生成可能较慢）
-        self._client = httpx.Client(timeout=120)
+        # 创建 HTTP 客户端，超时 300 秒（精读/审计 prompt 较长，需要更多时间）
+        self._client = httpx.Client(timeout=300)
 
     def chat(self, messages: list[dict], json_mode: bool = False) -> str:
         """调用 ARK API 发送聊天请求
@@ -129,8 +129,8 @@ class OpenAICompatibleClient(LLMClientBase):
             config: OpenAI 配置对象，包含 api_key、base_url、model 等
         """
         self._config = config
-        # 创建 HTTP 客户端，超时 120 秒
-        self._client = httpx.Client(timeout=120)
+        # 创建 HTTP 客户端，超时 300 秒（精读/审计 prompt 较长，需要更多时间）
+        self._client = httpx.Client(timeout=300)
 
     def chat(self, messages: list[dict], json_mode: bool = False) -> str:
         """调用 OpenAI 兼容 API 发送聊天请求
