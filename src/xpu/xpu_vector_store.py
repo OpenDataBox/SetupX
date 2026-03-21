@@ -315,7 +315,7 @@ class XpuVectorStore:
         query_embedding: List[float],
         ctx: Optional[XpuContext] = None,
         k: int = 3,
-        min_similarity: float = 0.6,
+        min_similarity: float = 0.45,
         exclude_ids: Optional[List[str]] = None,
     ) -> List[Dict[str, Any]]:
         """基于向量相似度搜索 XPU 条目，结合 telemetry 复合排序
@@ -327,7 +327,7 @@ class XpuVectorStore:
         其中 success_rate = successes / max(hits, 1)
 
         过滤规则：
-        - 最低相似度阈值：默认 0.6（低于此值的结果不返回）
+        - 最低相似度阈值：默认 0.45（低于此值的结果不返回）
         - 负面反馈过滤：failures > 3 且 success_rate < 0.2 的条目不返回
         - 排除 ID 列表：已尝试过的 XPU 不返回，保证返回 k 条均为未尝试的
 
@@ -335,7 +335,7 @@ class XpuVectorStore:
             query_embedding: 查询 embedding 向量（1536 维）
             ctx: 可选的上下文过滤条件
             k: 返回的最大结果数（默认 3）
-            min_similarity: 最低相似度阈值（默认 0.6）
+            min_similarity: 最低相似度阈值（默认 0.45）
             exclude_ids: 需要排除的 XPU ID 列表（已尝试过的建议）
 
         Returns:
@@ -386,14 +386,9 @@ class XpuVectorStore:
                         if tool_conditions:
                             where_clauses.append(f"({' OR '.join(tool_conditions)})")
 
-                # [P1-2] 负面反馈过滤：failures > 3 且 success_rate < 0.2 的条目排除
-                where_clauses.append("""
-                    NOT (
-                        COALESCE((telemetry->>'failures')::int, 0) > 3
-                        AND COALESCE((telemetry->>'successes')::int, 0)::float
-                            / GREATEST(COALESCE((telemetry->>'hits')::int, 0), 1) < 0.2
-                    )
-                """)
+                # [P1-2] 负面反馈过滤：已移至 RetrieverAgent 软过滤层
+                # 不再在数据库层硬过滤，由 LLM 根据 telemetry 动态判断
+                # 原设计：failures > 3 且 success_rate < 0.2 时排除
 
                 # 排除已尝试过的 XPU ID，保证返回的 k 条均为未尝试的
                 if exclude_ids:
@@ -422,8 +417,31 @@ class XpuVectorStore:
                     tool_boost_expr = f"(1.0 + 0.05 * ({' + '.join(tool_count_parts)}))"
 
                 # ---- 执行向量检索查询 ----
-                # [P0-1] 复合排序：similarity × (1 + success_rate) × tool_boost
-                # success_rate = successes / max(hits, 1)
+                # [P0-1] 复合排序（含动态 tier 加权）：
+                # composite_score = similarity × (1 + success_rate) × tool_boost × tier_boost
+                #
+                # 动态 tier 计算（基于 telemetry，无需额外字段）：
+                #   Tier 1 (Golden): hits >= 5 且 success_rate >= 0.6 → boost 1.5
+                #   Tier 2 (Normal): 其他 → boost 1.0
+                #   Tier 3 (Cold):   hits >= 5 且 success_rate < 0.3 → boost 0.6
+                #
+                # Tier 不是静态标签，而是每次查询时从 telemetry 实时计算。
+                # 高命中高成功率的 Golden 经验会被优先返回，
+                # 低质量经验被自然降权但不被硬删除（软过滤由 RetrieverAgent LLM 判断）。
+                tier_boost_expr = """
+                    CASE
+                        WHEN COALESCE((telemetry->>'hits')::int, 0) >= 5
+                             AND COALESCE((telemetry->>'successes')::float, 0)
+                                 / GREATEST(COALESCE((telemetry->>'hits')::int, 0), 1) >= 0.6
+                        THEN 1.5
+                        WHEN COALESCE((telemetry->>'hits')::int, 0) >= 5
+                             AND COALESCE((telemetry->>'successes')::float, 0)
+                                 / GREATEST(COALESCE((telemetry->>'hits')::int, 0), 1) < 0.3
+                        THEN 0.6
+                        ELSE 1.0
+                    END
+                """
+
                 query = f"""
                     SELECT
                         id,
@@ -437,6 +455,7 @@ class XpuVectorStore:
                             * (1.0 + COALESCE((telemetry->>'successes')::float, 0)
                                / GREATEST(COALESCE((telemetry->>'hits')::int, 0), 1))
                             * {tool_boost_expr}
+                            * ({tier_boost_expr})
                         AS composite_score
                     FROM xpu_entries
                     WHERE 1 - (embedding <=> %s::vector) >= %s
@@ -455,9 +474,21 @@ class XpuVectorStore:
                 cur.execute(query, params)
                 rows = cur.fetchall()
 
-                # 将查询结果转为字典列表
+                # 将查询结果转为字典列表（含动态 tier 标签）
                 results = []
                 for row in rows:
+                    telemetry = row[6] or {}
+                    # 计算动态 tier（与 SQL 中的 tier_boost 逻辑一致）
+                    hits = int(telemetry.get("hits", 0))
+                    successes = float(telemetry.get("successes", 0))
+                    success_rate = successes / max(hits, 1)
+                    if hits >= 5 and success_rate >= 0.6:
+                        tier = "golden"
+                    elif hits >= 5 and success_rate < 0.3:
+                        tier = "cold"
+                    else:
+                        tier = "normal"
+
                     results.append({
                         "id": row[0],
                         "context": row[1],
@@ -465,8 +496,9 @@ class XpuVectorStore:
                         "advice_nl": row[3],
                         "atoms": row[4],
                         "similarity": float(row[5]),
-                        "telemetry": row[6] or {},
+                        "telemetry": telemetry,
                         "composite_score": float(row[7]),
+                        "tier": tier,
                     })
 
                 return results

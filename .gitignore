@@ -58,3 +58,6 @@ AGENTS.md
 experiment/qwen_code/node_modules/
 experiment/opencode/node_modules/
 experiment/claude_code/node_modules/
+# 文档和输出（不入库）
+docs/
+output/

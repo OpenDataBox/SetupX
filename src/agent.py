@@ -32,8 +32,9 @@ from .models import (
     SetupResult,       # 最终输出结果
 )
 from .environment_manager import EnvironmentManager  # Docker 容器环境管理
-from .xpu_client import create_xpu_client, XPUClientBase  # XPU 知识库客户端
+from .xpu_client import create_xpu_client, XPUClientBase, VectorXPUClient  # XPU 知识库客户端
 from .llm_engine import LLMEngine  # LLM 推理引擎
+from .retriever_agent import RetrieverAgent  # XPU 检索子 Agent
 from .verifier_agent import VerifierAgent  # pytest 验证子 Agent
 
 logger = get_logger("agent")  # 主 Agent 专用日志
@@ -68,6 +69,16 @@ class SpeculativeSetupAgent:
         self._xpu: XPUClientBase = create_xpu_client()
         # 初始化 LLM 推理引擎（ARK 或 OpenAI 兼容接口）
         self._llm: LLMEngine = LLMEngine()
+
+        # 初始化 Retriever Agent（仅在 VectorXPUClient 时启用）
+        # Retriever Agent 在独立上下文中进行两层检索 + 延迟审计
+        self._retriever: RetrieverAgent | None = None
+        if isinstance(self._xpu, VectorXPUClient):
+            self._retriever = RetrieverAgent(
+                vector_store=self._xpu._store,
+                llm_client=self._llm._client,
+            )
+            logger.info("RetrieverAgent 已启用（VectorXPUClient 模式）")
 
         # 缓存当前步骤检索到的 XPU 建议，供 TRY_XPU_SUGGESTION 动作查找使用
         self._current_xpu_suggestions: list[XPUSuggestion] = []
@@ -123,15 +134,21 @@ class SpeculativeSetupAgent:
             # 只在有错误时才检索，没有错误说明不需要修复建议
             self._current_xpu_suggestions = []
             if self._state.last_error:
-                # 构造检索上下文：当前错误信息（os_info 不传入 XPU 检索，XPU 条目中无 OS 信息）
-                context = {
-                    "error": self._state.last_error,
-                }
-                # 查询 XPU 知识库，返回相似度最高的 Top-K 建议（排除已尝试的）
-                self._current_xpu_suggestions = self._xpu.query(
-                    context,
-                    exclude_ids=list(self._state.tried_suggestions) if self._state.tried_suggestions else None,
-                )
+                exclude = list(self._state.tried_suggestions) if self._state.tried_suggestions else None
+
+                if self._retriever:
+                    # 使用 Retriever Agent 两层检索（向量粗筛 + LLM 精读 + 延迟审计）
+                    # 传入完整 history，RetrieverAgent 会按 step_index 锚点提取后续步骤
+                    situation = self._build_situation(self._state.last_error)
+                    self._current_xpu_suggestions = self._retriever.retrieve(
+                        situation=situation,
+                        exclude_ids=exclude,
+                        full_history=self._state.history,
+                    )
+                else:
+                    # 回退：非 VectorXPUClient 时直接用 query()
+                    context = {"error": self._state.last_error}
+                    self._current_xpu_suggestions = self._xpu.query(context, exclude_ids=exclude)
 
             # --- 2c. LLM 决策（Thought & Plan）---
             # 将历史记录 + XPU 建议 + 当前观测发给 LLM，生成下一步动作
@@ -228,7 +245,7 @@ class SpeculativeSetupAgent:
         })
 
     def _handle_try_xpu_suggestion(self, action: AgentAction) -> None:
-        """处理 TRY_XPU_SUGGESTION 动作（推测执行模式，按 blueprint 2 节实现）
+        """处理 TRY_XPU_SUGGESTION 动作（推测执行模式）
 
         推测执行流程：
         A. 存档（Checkpoint）：docker commit 创建快照
@@ -236,11 +253,6 @@ class SpeculativeSetupAgent:
         C. 验证与归因（Verification & Attribution）：评估执行效果
         D. 提交反馈（Feedback Loop）：向 XPU 知识库提交 telemetry
         E. 决策分支（Decision Branch）：成功保留 / 失败回滚
-
-        归因分数规则：
-        - 1.0：所有命令执行成功
-        - -1.0：产生了新的错误（与之前的错误不同）
-        - 0.0：命令失败但错误信息未变（无效果）
 
         Args:
             action: LLM 输出的动作对象，action.xpu_suggestion_id 为建议 ID
@@ -282,7 +294,7 @@ class SpeculativeSetupAgent:
         # 如果建议的命令列表为空，跳过执行
         if not suggestion.commands:
             logger.warning(f"XPU 建议 {suggestion.id} 的 commands 为空，跳过执行")
-            self._state.record_tried_suggestion(suggestion.id)  # 标记为已尝试
+            self._state.record_tried_suggestion(suggestion.id)
             self._state.add_to_history({
                 "action": action.to_dict(),
                 "result": {
@@ -295,13 +307,13 @@ class SpeculativeSetupAgent:
 
         # 逐条执行建议中的命令，任一命令失败即中断
         success = True
-        logs: list[CommandResult] = []  # 记录每条命令的执行结果
+        logs: list[CommandResult] = []
         for cmd in suggestion.commands:
             result = self._env.exec_run(cmd)
             logs.append(result)
             if not result.success:
                 success = False
-                break  # 一旦失败立即停止，不继续执行后续命令
+                break
 
         # --- C. 验证与归因（Verification & Attribution）---
         # 获取执行后的错误信息（用于与执行前对比）
@@ -320,20 +332,22 @@ class SpeculativeSetupAgent:
             attribution_score = 0.0   # 无效果，错误信息没变
             outcome = "FAIL"
 
-        # --- D. 提交反馈（Feedback Loop）---
-        # 构造归因报告并提交给 XPU 知识库，更新 telemetry 统计
-        report = AttributionReport(
-            suggestion_id=suggestion.id,  # 建议 ID
-            timestamp=time.time(),         # 时间戳
-            repo_context=self._state.repo_url,  # 仓库 URL
-            outcome=outcome,               # 结果（SUCCESS/FAIL）
-            error_before=error_before,     # 执行前的错误
-            error_after=error_after,       # 执行后的错误
-            score=attribution_score,       # 归因分数
-            logs=logs,                     # 命令执行日志
-        )
-        # submit_feedback 内部调用 increment_telemetry 更新 hits/successes/failures
-        self._xpu.submit_feedback(report)
+        # --- D. 反馈（Feedback Loop）---
+        # RetrieverAgent 模式下，telemetry 由 RetrieverAgent 在 retrieve() 时
+        # 自动延迟审计，无需主 Agent 显式调用。
+        # 非 RetrieverAgent 模式回退到旧的即时反馈机制。
+        if not self._retriever:
+            report = AttributionReport(
+                suggestion_id=suggestion.id,
+                timestamp=time.time(),
+                repo_context=self._state.repo_url,
+                outcome=outcome,
+                error_before=error_before,
+                error_after=error_after,
+                score=attribution_score,
+                logs=logs,
+            )
+            self._xpu.submit_feedback(report)
 
         # --- E. 决策分支（Decision Branch）---
         if not success:
@@ -350,7 +364,6 @@ class SpeculativeSetupAgent:
         self._state.record_tried_suggestion(suggestion.id)
 
         # 记录历史：将执行结果写入 history，供 LLM 后续参考
-        # 注意：必须包含 "result" key，否则 llm_engine 不会生成对应的 user 观察消息
         cmd_outputs = "\n".join(
             f"$ {log.get('command', '')}\n{(log.get('stdout') or log.get('stderr') or '')[:300]}"
             for log in [l.to_dict() for l in logs[:3]]  # 最多记录前 3 条命令的输出
@@ -502,6 +515,49 @@ class SpeculativeSetupAgent:
         self._store_experience_if_applicable()
 
     # =========================================================================
+    # 情境构建（供 Retriever Agent 使用）
+    # =========================================================================
+
+    def _build_situation(self, last_error: str) -> str:
+        """构建当前部署情境描述（三段式：做了什么/在做什么/遇到什么问题）
+
+        Retriever Agent 使用此情境进行 XPU 检索，替代之前直接用 last_error 检索。
+        情境包含更丰富的上下文信息，提升检索精度。
+
+        Args:
+            last_error: 当前错误信息
+
+        Returns:
+            情境描述文本
+        """
+        parts = []
+
+        # 第一段：做了什么（从历史中提取最近 3 步的命令摘要）
+        recent = self._state.get_recent_history(3)
+        if recent:
+            done_steps = []
+            for entry in recent:
+                action = entry.get("action", {})
+                cmd = action.get("content", {}).get("command", "")
+                if cmd:
+                    result = entry.get("result", {})
+                    exit_code = result.get("exit_code", "?")
+                    done_steps.append(f"  {cmd} (exit={exit_code})")
+            if done_steps:
+                parts.append("已执行的操作:\n" + "\n".join(done_steps))
+
+        # 第二段：当前遇到的问题
+        if last_error:
+            # 截断过长的错误信息
+            error_text = last_error[:1500] if len(last_error) > 1500 else last_error
+            parts.append(f"当前遇到的问题:\n{error_text}")
+
+        # 第三段：仓库信息
+        parts.append(f"目标仓库: {self._state.repo_url}")
+
+        return "\n\n".join(parts)
+
+    # =========================================================================
     # 经验存储（Online Learning）
     # =========================================================================
 
@@ -649,7 +705,9 @@ class SpeculativeSetupAgent:
         在主循环结束后调用，释放 HTTP 连接资源。
         容器保留给验证阶段使用。
         """
-        logger.info("关闭 LLM/XPU 连接...")
+        logger.info("关闭 LLM/XPU/Retriever 连接...")
+        if self._retriever:
+            self._retriever.close(full_history=self._state.history)  # 关闭前执行最终审计
         self._llm.close()  # 关闭 LLM 客户端的 httpx.Client
         if hasattr(self._xpu, "close"):
             self._xpu.close()  # 关闭 XPU 客户端的 HTTP 连接
