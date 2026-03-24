@@ -305,6 +305,21 @@ You MUST respond in JSON format with this schema:
 }}
 """
 
+    # =========================================================================
+    # 情境描述 Prompt（用于 XPU 向量检索）
+    # =========================================================================
+    SITUATION_PROMPT = (
+        "你是环境配置 Agent 的情境感知模块。"
+        "根据当前工作历史，用2-3句中文描述当前情境，内容要便于检索相关经验：\n"
+        "1. 项目特征：语言、包管理器（pip/poetry/conda）、依赖文件类型\n"
+        "2. 已完成的操作和当前卡点（有错误则描述错误类型，无错误则描述在做什么）\n"
+        "3. 下一步意图\n"
+        "只输出纯文本描述，不输出 JSON，不超过150字。\n"
+        "【严格约束】只描述历史中实际执行过的命令和观察到的文件，禁止推断未见过的工具名。"
+        "例如：只有在历史中确认运行过 poetry 命令或观察到 poetry.lock 时，才能写\"使用 Poetry\"；"
+        "否则只写\"使用 pip\"或\"包管理器未知\"。"
+    )
+
     def __init__(self):
         """初始化 LLM 推理引擎
 
@@ -325,6 +340,50 @@ You MUST respond in JSON format with this schema:
             logger.info("使用 OpenAI 兼容 LLM 客户端")
         else:
             raise ValueError(f"不支持的 LLM 提供商: {config.llm_provider}")
+
+    def describe_situation(
+        self,
+        history: list[dict],
+        cwd: str,
+        os_info: str,
+        last_error: str | None,
+    ) -> str:
+        """用 LLM 生成当前情境描述，用于 XPU 向量检索
+
+        将最近 5 条历史记录 + 当前状态发给 LLM，生成 2-3 句中文描述。
+        失败时回退到截断的 last_error 文本。
+        """
+        recent = history[-5:]
+        lines = []
+        for entry in recent:
+            if "action" in entry:
+                a = entry["action"]
+                lines.append(f"动作: {a.get('action_type', '')} {a.get('command', '')[:80]}")
+            if "result" in entry:
+                r = entry["result"]
+                out = (r.get("stdout") or "")[:100]
+                err = (r.get("stderr") or "")[:100]
+                lines.append(f"结果(exit={r.get('exit_code', '')}): {out or err}")
+
+        history_text = "\n".join(lines) if lines else "（无历史记录，任务刚开始）"
+        error_text = f"\n当前错误: {last_error[:200]}" if last_error else ""
+
+        messages = [
+            {"role": "system", "content": self.SITUATION_PROMPT},
+            {"role": "user", "content": (
+                f"工作目录: {cwd}\nOS: {os_info}{error_text}\n\n"
+                f"最近操作历史:\n{history_text}"
+            )},
+        ]
+
+        try:
+            situation = self._client.chat(messages, json_mode=False).strip()
+        except Exception as e:
+            logger.warning(f"情境描述生成失败: {e}")
+            situation = last_error[:150] if last_error else "python 项目环境配置"
+
+        logger.info(f"[情境描述] {situation[:100]}")
+        return situation
 
     # =========================================================================
     # XPU 建议格式化

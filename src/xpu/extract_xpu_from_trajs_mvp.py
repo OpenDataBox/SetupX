@@ -412,6 +412,7 @@ def build_traj_prompt(
     traj: List[Dict[str, Any]],
     stats: Dict[str, Any],
     cfg: Dict[str, Any],
+    phase2_context: Dict[str, Any] | None = None,
 ) -> List[Dict[str, str]]:
     """构造 XPU 提取的 LLM prompt
 
@@ -451,6 +452,20 @@ def build_traj_prompt(
         "\n   - 值得提炼的标准：该问题具有通用性，其他仓库也可能遇到相同或类似的错误，且修复方案是确定的。"
         "\n   - 不值得提炼的情况：问题过于特定于该仓库（如仓库自身代码 bug），或者修复方案不明确。"
         "\n3. 对于每个值得提炼的问题，生成一条结构化的 XPU 条目，每条 XPU 应当聚焦于一个独立的根因，不要把多个不相关问题混在一条里。"
+        "\n"
+        "\n"
+        "\n【提炼原则（必须遵守）】"
+        "\n- 如果提供了 phase2_context，prosecution_charges 是因果关系最清晰的知识来源，优先从中提炼。"
+        "\n- 即便 verdict=guilty，也应提炼其中可泛化的模式。"
+        "\n- 允许记录三类经验（按优先级）："
+        "\n  1.【工具链模式】构建工具/包管理器层面的规律"
+        "\n  2.【包级安装模式】特定 Python 包的已知安装陷阱"
+        "\n  3.【环境配置模式】系统级配置/权限/路径问题"
+        "\n- 禁止记录纯粹的仓库特定事实，即【该仓库需要包 X】但不解释 WHY。"
+        "\n  判断标准：如果去掉仓库名，这条经验对其他用到相同包/工具的仓库是否仍然有用？有用则记录，否则丢弃。"
+        "\n- signals 中增加 situation_triggers（2-4条），描述经验适用场景，用于向量检索召回。"
+        "\n- 一条 XPU 只解决一个根因，不混合多个不相关问题。"
+        "\n- 不要生成 id 字段，系统会自动分配唯一 ID。"
         "\n"
         "\n回答必须是严格的 JSON 对象，不包含任何多余文字。"
     )
@@ -494,6 +509,15 @@ def build_traj_prompt(
         "language": cfg.get("llm_language", "zh"),
     }
 
+    if phase2_context:
+        user_payload["phase2_context"] = {
+            "prosecution_charges": phase2_context.get("prosecution_charges", []),
+            "verdict": phase2_context.get("verdict"),
+            "judge_reasoning": phase2_context.get("judge_reasoning", ""),
+            "verifier_summary": phase2_context.get("verifier_summary", ""),
+            "prosecutor_investigation": phase2_context.get("prosecutor_investigation", ""),
+        }
+
     return [
         {"role": "system", "content": system_text},
         {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
@@ -507,6 +531,7 @@ def build_traj_prompt(
 def extract_xpu_from_trajs(
     traj_path: Path,
     output_jsonl: Path,
+    phase2_context: Dict[str, Any] | None = None,
 ) -> None:
     """从轨迹文件中批量提取 XPU 经验（主入口函数）
 
@@ -548,8 +573,8 @@ def extract_xpu_from_trajs(
             # 通过启发式筛选的候选才送 LLM 提取
             if is_candidate:
                 try:
-                    # 构造 LLM prompt
-                    messages = build_traj_prompt(repo, rev, traj, stats, cfg)
+                    # 构造 LLM prompt（含 Phase 2 上下文）
+                    messages = build_traj_prompt(repo, rev, traj, stats, cfg, phase2_context=phase2_context)
                     # 调用 LLM API
                     raw = openai_compatible_chat_completions(
                         model=cfg["llm_model"],

@@ -446,7 +446,13 @@ class RetrieverAgent:
                 commands.extend(render_atom_to_commands(atom))
 
             advice = c.get("advice_nl") or []
-            description = f"[Retriever] {reason}" if reason else "\n".join(advice)
+            advice_text = "\n".join(advice)
+            if reason and advice_text:
+                description = f"[Retriever] {reason}\n建议: {advice_text}"
+            elif advice_text:
+                description = advice_text
+            else:
+                description = f"[Retriever] {reason}" if reason else ""
 
             suggestions.append(XPUSuggestion(
                 id=xpu_id,

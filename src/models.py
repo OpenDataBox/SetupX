@@ -114,6 +114,8 @@ class AgentAction:
     env_value: str | None = None              # SET_ENV 时的变量值
     message: str | None = None                # FINISH 时的消息
 
+    verify_hint: str | None = None            # VERIFY 时给 Verifier 的运行提示
+
     def to_dict(self) -> dict:
         result = {
             "thought": self.thought,
@@ -128,6 +130,9 @@ class AgentAction:
         elif self.action_type == ActionType.SET_ENV:
             result["content"]["env_key"] = self.env_key
             result["content"]["env_value"] = self.env_value
+        elif self.action_type == ActionType.VERIFY:
+            if self.verify_hint:
+                result["content"]["hint"] = self.verify_hint
         elif self.action_type == ActionType.FINISH:
             result["content"]["message"] = self.message
         return result
@@ -192,6 +197,7 @@ class SetupResult:
     steps_taken: int
     final_message: str
     history: list[dict] = field(default_factory=list)  # 完整执行历史
+    last_verify_messages: list[dict] = field(default_factory=list)  # 最后一次成功 verify 的对话轨迹
 
     def to_dict(self) -> dict:
         return {
@@ -213,6 +219,7 @@ class VerifyResult:
     exit_code: int
     stdout: str
     stderr: str
+    messages: list[dict] = field(default_factory=list)  # Verifier 完整对话轨迹，供 Phase 2 审查
 
     def to_dict(self) -> dict:
         return {
@@ -224,3 +231,20 @@ class VerifyResult:
             "stdout": self.stdout,
             "stderr": self.stderr,
         }
+
+
+@dataclass
+class ProsecutionResult:
+    """检察官调查结果"""
+    prosecute: bool                            # 是否提起诉讼
+    charges: list[dict] = field(default_factory=list)   # [{claim, evidence}, ...]
+    messages: list[dict] = field(default_factory=list)  # Prosecutor 执行轨迹
+
+
+@dataclass
+class Phase2Result:
+    """Phase 2 诉讼裁决结果"""
+    success: bool
+    reason: str
+    prosecution: "ProsecutionResult | None" = None
+    judge_reasoning: str = ""

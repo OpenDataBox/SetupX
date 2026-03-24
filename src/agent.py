@@ -80,8 +80,12 @@ class SpeculativeSetupAgent:
             )
             logger.info("RetrieverAgent 已启用（VectorXPUClient 模式）")
 
+        # XPU 建议池：{id: (suggestion, step_last_seen)}，保留最近2步内见过的建议
+        self._xpu_suggestion_pool: dict[str, tuple[XPUSuggestion, int]] = {}
         # 缓存当前步骤检索到的 XPU 建议，供 TRY_XPU_SUGGESTION 动作查找使用
         self._current_xpu_suggestions: list[XPUSuggestion] = []
+        # 保存最后一次成功 verify 的 Verifier 对话轨迹，供 Phase 2 使用
+        self._last_verify_messages: list[dict] = []
 
         logger.info(f"Agent 初始化完成，目标仓库: {repo_url}")
 
@@ -130,25 +134,53 @@ class SpeculativeSetupAgent:
             # 获取操作系统信息（Ubuntu/Debian 版本等），供 LLM 判断环境
             os_info = self._env.exec_run("cat /etc/os-release | head -2").stdout.strip()
 
-            # --- 2b. 检索 XPU 知识库 ---
-            # 只在有错误时才检索，没有错误说明不需要修复建议
+            # --- 2b. 诊断与检索 ---
+            # 阶段A：LLM 生成情境描述（每步必触发，提供丰富上下文）
+            situation = self._llm.describe_situation(
+                history=self._state.get_recent_history(),
+                cwd=cwd,
+                os_info=os_info,
+                last_error=self._state.last_error,
+            )
+
+            # 阶段B：有错误时才检索 XPU 建议
             self._current_xpu_suggestions = []
             if self._state.last_error:
                 exclude = list(self._state.tried_suggestions) if self._state.tried_suggestions else None
 
                 if self._retriever:
-                    # 使用 Retriever Agent 两层检索（向量粗筛 + LLM 精读 + 延迟审计）
-                    # 传入完整 history，RetrieverAgent 会按 step_index 锚点提取后续步骤
-                    situation = self._build_situation(self._state.last_error)
+                    # 使用 LLM 情境描述 + RetrieverAgent 两层检索（向量粗筛 + LLM 精读 + 延迟审计）
                     self._current_xpu_suggestions = self._retriever.retrieve(
                         situation=situation,
                         exclude_ids=exclude,
                         full_history=self._state.history,
                     )
                 else:
-                    # 回退：非 VectorXPUClient 时直接用 query()
-                    context = {"error": self._state.last_error}
-                    self._current_xpu_suggestions = self._xpu.query(context, exclude_ids=exclude)
+                    # 回退：非 VectorXPUClient 时，双路检索（情境 + error 原文），去重合并
+                    suggestions_by_situation = self._xpu.query(
+                        {"query": situation, "os_release": os_info},
+                        exclude_ids=exclude,
+                    )
+                    suggestions_by_error = self._xpu.query(
+                        {"error": self._state.last_error, "os_release": os_info},
+                        exclude_ids=exclude,
+                    )
+                    seen_ids = {s.id for s in suggestions_by_situation}
+                    for s in suggestions_by_error:
+                        if s.id not in seen_ids:
+                            suggestions_by_situation.append(s)
+                    self._current_xpu_suggestions = suggestions_by_situation
+
+            # 更新跨步建议池：新建议加入，过期（超过2步未见）的移除
+            current_step = self._state.step
+            for s in self._current_xpu_suggestions:
+                self._xpu_suggestion_pool[s.id] = (s, current_step)
+            self._xpu_suggestion_pool = {
+                sid: (sg, step)
+                for sid, (sg, step) in self._xpu_suggestion_pool.items()
+                if current_step - step <= 1  # 保留本步和上一步的建议
+            }
+            self._current_xpu_suggestions = [sg for sg, _ in self._xpu_suggestion_pool.values()]
 
             # --- 2c. LLM 决策（Thought & Plan）---
             # 将历史记录 + XPU 建议 + 当前观测发给 LLM，生成下一步动作
@@ -193,8 +225,11 @@ class SpeculativeSetupAgent:
                 break
 
         # === 3. 清理阶段 ===
-        # 关闭 LLM 和 XPU 的 HTTP 连接，但保留 Docker 容器
-        self._close_clients()
+        # 关闭 LLM 连接，XPU 连接保留（main.py 在 _store_xpu_experience 后关闭）
+        self._llm.close()
+        # RetrieverAgent 关闭前执行最终审计
+        if self._retriever:
+            self._retriever.close(full_history=self._state.history)
         # 清理快照镜像释放磁盘空间，验证阶段不再需要回滚能力
         self._env.cleanup_snapshots()
 
@@ -210,6 +245,7 @@ class SpeculativeSetupAgent:
             steps_taken=self._state.step,
             final_message=self._state.final_message or "达到最大迭代次数，任务未完成",
             history=self._state.history,
+            last_verify_messages=self._last_verify_messages,
         )
 
     # =========================================================================
@@ -444,8 +480,11 @@ class SpeculativeSetupAgent:
             False 表示验证失败（调用方继续循环修复）
         """
         logger.info("[VERIFY] 开始 pytest 验证")
-        # 创建 VerifierAgent，复用当前容器
-        verifier = VerifierAgent(self._env)
+        # 创建 VerifierAgent，复用当前容器，传递 hint 给 Verifier
+        hint = action.verify_hint or ""
+        if hint:
+            logger.info(f"[VERIFY] 传递 hint 给 Verifier: {hint}")
+        verifier = VerifierAgent(self._env, hint=hint)
         result = verifier.verify()  # 运行 pytest 验证
 
         logger.info(
@@ -481,8 +520,7 @@ class SpeculativeSetupAgent:
             self._state.completed = True
             self._state.final_message = f"pytest 验证通过，{result.collect_count} 个测试用例"
             self._state.last_error = None
-            # 任务成功后尝试将修复经验存入 XPU 向量数据库
-            self._store_experience_if_applicable()
+            self._last_verify_messages = result.messages
             return True
         else:
             # 验证失败：将完整 pytest 输出反馈给 LLM，让它继续修复
@@ -510,52 +548,6 @@ class SpeculativeSetupAgent:
                 "stderr": "",
             },
         })
-
-        # 任务成功后尝试存储经验到向量数据库（Online Learning）
-        self._store_experience_if_applicable()
-
-    # =========================================================================
-    # 情境构建（供 Retriever Agent 使用）
-    # =========================================================================
-
-    def _build_situation(self, last_error: str) -> str:
-        """构建当前部署情境描述（三段式：做了什么/在做什么/遇到什么问题）
-
-        Retriever Agent 使用此情境进行 XPU 检索，替代之前直接用 last_error 检索。
-        情境包含更丰富的上下文信息，提升检索精度。
-
-        Args:
-            last_error: 当前错误信息
-
-        Returns:
-            情境描述文本
-        """
-        parts = []
-
-        # 第一段：做了什么（从历史中提取最近 3 步的命令摘要）
-        recent = self._state.get_recent_history(3)
-        if recent:
-            done_steps = []
-            for entry in recent:
-                action = entry.get("action", {})
-                cmd = action.get("content", {}).get("command", "")
-                if cmd:
-                    result = entry.get("result", {})
-                    exit_code = result.get("exit_code", "?")
-                    done_steps.append(f"  {cmd} (exit={exit_code})")
-            if done_steps:
-                parts.append("已执行的操作:\n" + "\n".join(done_steps))
-
-        # 第二段：当前遇到的问题
-        if last_error:
-            # 截断过长的错误信息
-            error_text = last_error[:1500] if len(last_error) > 1500 else last_error
-            parts.append(f"当前遇到的问题:\n{error_text}")
-
-        # 第三段：仓库信息
-        parts.append(f"目标仓库: {self._state.repo_url}")
-
-        return "\n\n".join(parts)
 
     # =========================================================================
     # 经验存储（Online Learning）
