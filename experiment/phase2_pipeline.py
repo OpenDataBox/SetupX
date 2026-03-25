@@ -1,15 +1,15 @@
 """
-统一 Phase 2 诉讼裁决编排。
+experiment 专用的 Phase 2 诉讼裁决编排。
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from .environment_manager import EnvironmentManager
-from .judge_agent import JudgeAgent
-from .models import ProsecutionResult
-from .prosecutor_agent import ProsecutorAgent
+from src.environment_manager import EnvironmentManager
+from src.judge_agent import JudgeAgent
+from src.models import ProsecutionResult
+from src.prosecutor_agent import ProsecutorAgent
 
 
 def serialize_prosecution(prosecution: ProsecutionResult | None) -> dict[str, Any] | None:

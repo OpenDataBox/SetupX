@@ -20,8 +20,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from experiment.phase2_pipeline import build_external_tool_setup_history, run_phase2_review
 from src.environment_manager import EnvironmentManager
-from src.phase2_pipeline import build_external_tool_setup_history, run_phase2_review
 from src.verifier_agent import VerifierAgent
 
 
