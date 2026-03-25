@@ -53,7 +53,7 @@ class XPUConfig:
 @dataclass(frozen=True)
 class Config:
     """全局配置"""
-    ark: ARKConfig
+    ark: ARKConfig | None
     openai: OpenAIConfig | None
     docker: DockerConfig
     xpu: XPUConfig
@@ -83,17 +83,30 @@ def _get_env_int(key: str, default: int) -> int:
 def load_config() -> Config:
     """加载并返回全局配置"""
 
-    # ARK 配置（必需）
-    ark = ARKConfig(
-        api_key=_get_env("ARK_API_KEY"),
-        base_url=_get_env("ARK_BASE_URL"),
-        deployment=_get_env("ARK_DEPLOYMENT"),
-    )
+    # LLM 提供商选择
+    llm_provider = _get_env("LLM_PROVIDER", "ark")
+    if llm_provider not in ("ark", "openai"):
+        raise ValueError(f"不支持的 LLM 提供商: {llm_provider}，仅支持 ark 或 openai")
 
-    # OpenAI 兼容配置（可选）
+    # ARK 配置（仅在 llm_provider=ark 时必需）
+    ark = None
+    if llm_provider == "ark":
+        ark = ARKConfig(
+            api_key=_get_env("ARK_API_KEY"),
+            base_url=_get_env("ARK_BASE_URL"),
+            deployment=_get_env("ARK_DEPLOYMENT"),
+        )
+
+    # OpenAI 兼容配置（仅在 llm_provider=openai 时必需）
     openai_key = os.getenv("OPENAI_API_KEY")
     openai = None
-    if openai_key:
+    if llm_provider == "openai":
+        openai = OpenAIConfig(
+            api_key=_get_env("OPENAI_API_KEY"),
+            base_url=_get_env("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+            model=_get_env("OPENAI_MODEL", "gpt-4o"),
+        )
+    elif openai_key:
         openai = OpenAIConfig(
             api_key=openai_key,
             base_url=_get_env("OPENAI_BASE_URL", "https://api.openai.com/v1"),
@@ -115,11 +128,6 @@ def load_config() -> Config:
         db_dns=os.getenv("dns") or os.getenv("XPU_DB_DNS"),
         vector_enabled=_get_env_bool("XPU_VECTOR_ENABLED", False),
     )
-
-    # LLM 提供商选择
-    llm_provider = _get_env("LLM_PROVIDER", "ark")
-    if llm_provider not in ("ark", "openai"):
-        raise ValueError(f"不支持的 LLM 提供商: {llm_provider}，仅支持 ark 或 openai")
 
     # 日志目录
     log_dir = PROJECT_ROOT / "log"

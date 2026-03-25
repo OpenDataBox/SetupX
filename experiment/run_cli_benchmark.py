@@ -16,7 +16,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from src.environment_manager import EnvironmentManager
+from src.phase2_pipeline import build_external_tool_setup_history, run_phase2_review
 from src.verifier_agent import VerifierAgent
 
 
@@ -121,8 +126,45 @@ def extract_pattern(pattern: str, text: str, label: str) -> str:
         return match.group(1).strip()
     return match.group(0).strip()
 
+def run_phase2(
+    env: EnvironmentManager,
+    tool: dict[str, Any],
+    command: str,
+    output_text: str,
+    return_code: int,
+    verify_result: Any,
+) -> dict[str, Any]:
+    if not tool.get("phase2_enabled", True):
+        return {
+            "phase2_attempted": False,
+            "phase2_success": verify_result.success,
+            "phase2_verdict": None,
+            "phase2_reason": "",
+            "prosecution": None,
+            "phase2_error": "",
+        }
 
-def run_verify(tool: dict[str, Any], output_text: str, command: str) -> dict[str, Any]:
+    setup_history = build_external_tool_setup_history(
+        tool_name=tool["name"],
+        command=command,
+        output_text=output_text,
+        return_code=return_code,
+    )
+    phase2_meta = run_phase2_review(
+        env=env,
+        setup_history=setup_history,
+        verify_messages=verify_result.messages,
+    )
+    return {
+        "phase2_attempted": True,
+        "phase2_success": phase2_meta["success"],
+        "phase2_verdict": phase2_meta["verdict"],
+        "phase2_reason": phase2_meta["reason"],
+        "prosecution": phase2_meta["prosecution_dict"],
+        "phase2_error": "",
+    }
+
+def run_verify(tool: dict[str, Any], output_text: str, command: str, return_code: int) -> dict[str, Any]:
     output_mode = tool.get("output_mode", "plain")
     if not tool.get("verify_enabled", False):
         return {
@@ -142,6 +184,7 @@ def run_verify(tool: dict[str, Any], output_text: str, command: str) -> dict[str
             container_id = extract_pattern(pattern, output_text, "container_id")
             work_dir = tool.get("container_work_dir", "/workspace")
             env = EnvironmentManager.from_container(container_id, work_dir=work_dir)
+            verify_hint = f"当前项目根目录在容器内为 {work_dir}，请先在该目录做结构侦察，不要假设固定路径。"
             cleanup_mode = "destroy" if tool.get("destroy_container_after_verify", False) else "none"
         elif output_mode == "dockerfile":
             pattern = tool.get("dockerfile_dir_pattern", "").strip()
@@ -150,17 +193,31 @@ def run_verify(tool: dict[str, Any], output_text: str, command: str) -> dict[str
             dockerfile_dir = extract_pattern(pattern, output_text, "dockerfile_dir")
             work_dir = tool.get("dockerfile_work_dir", "/repo")
             env = EnvironmentManager.from_dockerfile(dockerfile_dir, work_dir=work_dir)
+            verify_hint = f"当前项目根目录在容器内为 {work_dir}，请先在该目录做结构侦察，不要假设固定路径。"
             cleanup_mode = "destroy"
         else:
             raise ValueError(f"verify_enabled=true 时不支持 output_mode={output_mode}")
 
-        verifier = VerifierAgent(env, setup_summary=f"工具={tool['name']}，命令={command}")
+        verifier = VerifierAgent(
+            env,
+            setup_summary=f"工具={tool['name']}，命令={command}。项目根目录在容器内为 {work_dir}。",
+            hint=verify_hint,
+        )
         verify_result = verifier.verify()
+        phase2_meta = run_phase2(
+            env=env,
+            tool=tool,
+            command=command,
+            output_text=output_text,
+            return_code=return_code,
+            verify_result=verify_result,
+        )
         return {
             "verify_attempted": True,
             "verify_success": verify_result.success,
             "verify_result": verify_result.to_dict(),
             "verify_error": "",
+            **phase2_meta,
         }
     except Exception as exc:
         return {
@@ -243,13 +300,16 @@ def run_one(
         timeout_hit = True
         return_code = -1
 
-    verify_meta = run_verify(tool, output_text, command)
+    verify_meta = run_verify(tool, output_text, command, return_code)
 
     with log_path.open("w", encoding="utf-8") as f:
         f.write(output_text)
 
     if verify_meta["verify_attempted"]:
-        success = bool(verify_meta["verify_success"])
+        if verify_meta.get("phase2_attempted"):
+            success = bool(verify_meta.get("phase2_success"))
+        else:
+            success = bool(verify_meta["verify_success"])
     else:
         success = judge_success(
             tool.get("judge_mode", "return_code"),
@@ -276,6 +336,12 @@ def run_one(
         "verify_success": verify_meta["verify_success"],
         "verify_result": verify_meta["verify_result"],
         "verify_error": verify_meta["verify_error"],
+        "phase2_attempted": verify_meta.get("phase2_attempted", False),
+        "phase2_success": verify_meta.get("phase2_success"),
+        "phase2_verdict": verify_meta.get("phase2_verdict"),
+        "phase2_reason": verify_meta.get("phase2_reason", ""),
+        "prosecution": verify_meta.get("prosecution"),
+        "phase2_error": verify_meta.get("phase2_error", ""),
     }
     result_path = repo_dir / "result.json"
     with result_path.open("w", encoding="utf-8") as f:

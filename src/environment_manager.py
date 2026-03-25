@@ -450,6 +450,28 @@ class EnvironmentManager:
         """获取已设置的环境变量值，不存在返回 None"""
         return self._env_vars.get(key)
 
+
+    def get_env_snapshot(self) -> str:
+        """获取容器环境快照，供检察官/法官在调查前快速感知环境。"""
+        cmd = (
+            "echo '--- Python 解释器 ---' && "
+            "which python3 python 2>/dev/null; python3 --version 2>/dev/null; "
+            "echo '--- 虚拟环境 ---' && "
+            "ls -d */venv */env */.venv venv .venv env 2>/dev/null || echo '(未发现)'; "
+            "echo 'VIRTUAL_ENV='$VIRTUAL_ENV; "
+            "echo 'CONDA_PREFIX='$CONDA_PREFIX; "
+            "echo '--- PATH ---' && echo \"$PATH\"; "
+            "echo '--- 项目标记文件 ---' && "
+            "ls pyproject.toml setup.py setup.cfg requirements.txt "
+            "CMakeLists.txt Makefile configure meson.build "
+            "package.json Cargo.toml go.mod pom.xml build.gradle 2>/dev/null || echo '(无)'; "
+            "echo '--- 工作目录 ---' && pwd && ls | head -30"
+        )
+        result = self.exec_run(cmd, timeout=15)
+        if result.success:
+            return result.stdout[:2000]
+        return f"(快照获取失败: exit_code={result.exit_code})"
+
     # ========================================================================
     # 快照与回滚机制
     # 使用 docker commit 将容器当前状态保存为镜像，回滚时从镜像重建容器

@@ -56,3 +56,8 @@ experiment/claude_code/node_modules/
 # 文档和输出（不入库）
 docs/
 output/
+
+# Experiment artifacts
+experiment/results/
+experiment/results_small/
+exp_small.log

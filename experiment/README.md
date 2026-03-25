@@ -30,11 +30,11 @@
 2. 调用外部 CLI 工具执行仓库配置任务  
    `run_cli_benchmark.py` 会读取 `tools.json`，按工具逐个运行 `command_template`。模板变量由脚本统一替换，包括仓库名、仓库 URL、任务提示词路径和任务全文。
 
-3. 复用当前仓库已有的 Docker 和 verify 流程做统一验证  
+3. 复用当前仓库已有的 Docker、verify 和诉讼裁决 phase2 流程做统一验证  
    这是这套实验的关键：
    - 如果外部 CLI 最终产出一个容器，并在输出中打印 `container_id=<容器ID>`，实验脚本会调用 `EnvironmentManager.from_container()` 接管这个容器。
    - 如果外部 CLI 最终产出一个 Dockerfile 目录，并打印 `dockerfile_dir=<目录路径>`，实验脚本会调用 `EnvironmentManager.from_dockerfile()` 构建并启动容器。
-   - 接管成功后，统一调用 `VerifierAgent.verify()` 在容器内做黑箱验证。
+   - 接管成功后，先统一调用 `VerifierAgent.verify()` 在容器内做黑箱验证，再复用与主流程一致的检察官/法官 phase2 裁决。
 
 4. 记录原始结果并汇总成功率  
    每次运行会在 `results/<run_id>/` 下生成一套独立结果，并按 `run_id / tool / repo` 隔离落盘。脚本默认不覆盖历史实验。
@@ -53,8 +53,9 @@
 - `container_id_pattern`：从输出中提取容器 ID 的正则
 - `dockerfile_dir_pattern`：从输出中提取 Dockerfile 目录的正则
 - `container_work_dir` / `dockerfile_work_dir`：验证时进入的项目目录
+- `phase2_enabled`：是否在 verify 后继续跑诉讼裁决 phase2，默认开启
 
-如果工具没有产出可接管的容器或 Dockerfile，脚本仍可运行，但只能按 `judge_mode` 用退出码或输出关键字做粗粒度判定，不能复用当前仓库的 verify 流程。
+如果工具没有产出可接管的容器或 Dockerfile，脚本仍可运行，但只能按 `judge_mode` 用退出码或输出关键字做粗粒度判定，不能复用当前仓库的 verify/phase2 流程。
 
 ## 配置方式
 
@@ -63,6 +64,9 @@
 ```bash
 cp experiment/configs/tools.example.json experiment/configs/tools.json
 ```
+
+默认样例已经按仓库根目录下的 `.venv/bin/python` 调用各个 launcher。
+如果你使用的虚拟环境目录不同，请同步修改 `command_template`。
 
 然后填写每个工具的真实命令模板。示例字段：
 
@@ -251,7 +255,7 @@ OpenCode 官方 SDK 说明：
 运行 benchmark：
 
 ```bash
-python experiment/run_cli_benchmark.py \
+.venv/bin/python experiment/run_cli_benchmark.py \
   --tools-config experiment/configs/tools.json \
   --repo-list data/python329.jsonl \
   --limit 10
@@ -260,7 +264,7 @@ python experiment/run_cli_benchmark.py \
 汇总结果：
 
 ```bash
-python experiment/summarize_results.py \
+.venv/bin/python experiment/summarize_results.py \
   --result-dir experiment/results/<run_id>
 ```
 
