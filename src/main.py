@@ -200,70 +200,84 @@ def main() -> int:
         f"steps={setup_result.steps_taken}, container={setup_result.container_id[:12]}"
     )
 
+    log_dir = Path("log")
+    log_dir.mkdir(exist_ok=True)
+    safe_name = repo_url.rstrip("/").split("/")[-1]
+
     # ── 阶段2: Phase 2 诉讼裁决 ──
     logger.info("=== 阶段2: Phase 2 诉讼裁决 ===")
 
-    phase2_success: bool
+    phase2_success: bool | None
     phase2_reason: str
     prosecution_dict = None
     prosecution = None
     judgment = None
 
-    if setup_result.completed:
-        logger.info("Setup Agent 主动 FINISH，启动 Phase 2 诉讼模型")
+    try:
+        if setup_result.completed:
+            logger.info("Setup Agent 主动 FINISH，启动 Phase 2 诉讼模型")
 
-        # 检察官调查
-        logger.info("--- 检察官调查阶段 ---")
-        prosecutor = ProsecutorAgent(
-            agent.env,
-            setup_result.history,
-            setup_result.last_verify_messages,
-        )
-        prosecution = prosecutor.investigate()
-        prosecution_dict = {
-            "prosecute": prosecution.prosecute,
-            "charges": prosecution.charges,
-        }
-        logger.info(f"检察官调查完成: prosecute={prosecution.prosecute}, 指控数={len(prosecution.charges)}")
-
-        if not prosecution.prosecute:
-            phase2_success = True
-            phase2_reason = "检察官未发现实质问题"
-            logger.info("检察官选择不起诉，直接判定 success=True")
-        else:
-            # 法官裁决
-            logger.info("--- 法官裁决阶段 ---")
-            judgment = JudgeAgent(
+            # 检察官调查
+            logger.info("--- 检察官调查阶段 ---")
+            prosecutor = ProsecutorAgent(
+                agent.env,
                 setup_result.history,
                 setup_result.last_verify_messages,
-                prosecution,
-                env=agent.env,
-            ).rule()
-            phase2_success = (judgment["verdict"] == "not_guilty")
-            phase2_reason = judgment["reasoning"]
-            logger.info(
-                f"法官裁决: verdict={judgment['verdict']}, "
-                f"reasoning={phase2_reason[:100]}"
             )
-    else:
-        phase2_success = False
-        phase2_reason = f"Setup Agent 超时（{setup_result.steps_taken} 步），未主动 FINISH"
-        logger.info(f"Setup 未完成，跳过 Phase 2: {phase2_reason}")
+            prosecution = prosecutor.investigate()
+            prosecution_dict = {
+                "prosecute": prosecution.prosecute,
+                "charges": prosecution.charges,
+            }
+            logger.info(f"检察官调查完成: prosecute={prosecution.prosecute}, 指控数={len(prosecution.charges)}")
 
-    # ── XPU 经验提取 ──
-    logger.info("=== XPU 经验提取 ===")
-    _store_xpu_experience(
-        xpu_client=agent._xpu,
-        setup_result=setup_result,
-        prosecution=prosecution,
-        judgment=judgment,
-    )
-    if hasattr(agent._xpu, "close"):
-        agent._xpu.close()
+            if not prosecution.prosecute:
+                phase2_success = True
+                phase2_reason = "Prosecutor 未发现实质问题"
+                logger.info("检察官选择不起诉，直接判定 success=True")
+            else:
+                # 法官裁决
+                logger.info("--- 法官裁决阶段 ---")
+                judgment = JudgeAgent(
+                    setup_result.history,
+                    setup_result.last_verify_messages,
+                    prosecution,
+                    env=agent.env,
+                ).rule()
 
-    # ── 清理容器 ──
-    agent.env.destroy()
-    logger.info("容器已销毁")
+                verdict = judgment["verdict"]
+                phase2_reason = judgment["reasoning"]
+                if verdict == "not_guilty":
+                    phase2_success = True
+                elif verdict == "guilty":
+                    phase2_success = False
+                else:
+                    phase2_success = None
+                    phase2_reason = f"[异常] {phase2_reason}"
+
+                logger.info(
+                    f"法官裁决: verdict={verdict}, "
+                    f"reasoning={phase2_reason[:100]}"
+                )
+        else:
+            phase2_success = False
+            phase2_reason = f"Setup Agent 超时（{setup_result.steps_taken} 步），未主动 FINISH"
+            logger.info(f"Setup 未完成，跳过 Phase 2: {phase2_reason}")
+
+    except Exception as e:
+        logger.error(f"Phase 2 执行异常: {e}")
+        phase2_success = None
+        phase2_reason = f"[异常] Phase 2 执行出错: {e}"
+
+    finally:
+        # ── 清理：关闭客户端 + 销毁容器 ──
+        if hasattr(agent._xpu, "close"):
+            agent._xpu.close()
+        try:
+            agent.env.destroy()
+            logger.info("容器已销毁")
+        except Exception as e:
+            logger.warning(f"容器销毁失败: {e}")
 
     # ── 阶段3: Report ──
     logger.info("=== 阶段3: Report（结果输出）===")
@@ -274,26 +288,27 @@ def main() -> int:
             "success": phase2_success,
             "reason": phase2_reason,
             "prosecution": prosecution_dict,
+            "judgment": judgment,
         },
     }
 
-    log_dir = Path("log")
-    log_dir.mkdir(exist_ok=True)
-    safe_name = repo_url.rstrip("/").split("/")[-1]
     output_path = log_dir / f"{safe_name}_result.json"
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
     logger.info(f"结果已写入: {output_path}")
 
     # 屏幕输出摘要
+    verdict_str = "通过" if phase2_success is True else ("失败" if phase2_success is False else "异常")
     print(f"\n{'='*50}")
     print(f"仓库: {repo_url}")
     print(f"Setup: {'完成' if setup_result.completed else '未完成'} ({setup_result.steps_taken} 步)")
-    print(f"Phase2: {'通过' if phase2_success else '失败'}")
+    print(f"Phase2: {verdict_str}")
     print(f"裁决原因: {phase2_reason}")
     print(f"详细结果: {output_path}")
     print(f"{'='*50}")
 
+    if phase2_success is None:
+        return 2  # 异常退出码
     return 0 if phase2_success else 1
 
 

@@ -396,10 +396,8 @@ def heuristic_is_candidate(stats: Dict[str, Any]) -> Tuple[bool, float]:
 
     print(f"[DEBUG] Heuristic Stats: {stats}, Score: {score}")
 
-    # [P1 优化] 阈值从 score > 0 提升到 score >= 6
-    # 要求至少同时包含环境命令(+5)和错误关键词(+5)，或其中之一加上命令(+1)
-    # 这样避免把纯探索性轨迹（只有命令没有环境操作）送 LLM 浪费 token
-    return score >= 6, score
+    # 宽松阈值：只要有分就过，避免遗漏有价值的轨迹（尤其是失败轨迹）
+    return score > 0, score
 
 
 # ============================================================================
@@ -455,16 +453,30 @@ def build_traj_prompt(
         "\n"
         "\n"
         "\n【提炼原则（必须遵守）】"
-        "\n- 如果提供了 phase2_context，prosecution_charges 是因果关系最清晰的知识来源，优先从中提炼。"
+        "\n- prosecution_charges 是因果关系最清晰的知识来源，优先从中提炼。"
         "\n- 即便 verdict=guilty，也应提炼其中可泛化的模式。"
         "\n- 允许记录三类经验（按优先级）："
-        "\n  1.【工具链模式】构建工具/包管理器层面的规律"
-        "\n  2.【包级安装模式】特定 Python 包的已知安装陷阱"
-        "\n  3.【环境配置模式】系统级配置/权限/路径问题"
-        "\n- 禁止记录纯粹的仓库特定事实，即【该仓库需要包 X】但不解释 WHY。"
+        "\n  1.【工具链模式】构建工具/包管理器层面的规律，例如："
+        "\n    【pyproject.toml 含 [tool.poetry] 时，必须用 poetry install 而非 pip install -r】"
+        "\n    【conda 虚拟环境中，pip install 的包可能对 conda 不可见】"
+        "\n  2.【包级安装模式】特定 Python 包的已知安装陷阱，这类知识在不同仓库遇到同一个包时都适用，例如："
+        "\n    【psycopg2 需要系统库 libpq-dev，否则编译失败；或改用 psycopg2-binary】"
+        "\n    【lxml 编译需要 libxml2-dev libxslt1-dev】"
+        "\n    【某包 X 的最新版不兼容 Python 3.10，需降版本到 X==1.2.3】"
+        "\n  3.【环境配置模式】系统级配置/权限/路径问题，例如："
+        "\n    【pip install --user 的包不在 PATH 中，需要 export PATH=$HOME/.local/bin:$PATH】"
+        "\n    【Docker 容器内缺少 locale 设置，某些包 import 时会因 UnicodeError 崩溃】"
+        "\n- 禁止记录的唯一类型：纯粹的仓库特定事实，即【该仓库需要包 X】但不解释 WHY（为什么 X 安装有坑）。"
         "\n  判断标准：如果去掉仓库名，这条经验对其他用到相同包/工具的仓库是否仍然有用？有用则记录，否则丢弃。"
-        "\n- signals 中增加 situation_triggers（2-4条），描述经验适用场景，用于向量检索召回。"
+        "\n- verifier_summary 可辅助判断——测试实际失败的原因比 agent 推测更可信。"
         "\n- 一条 XPU 只解决一个根因，不混合多个不相关问题。"
+        "\n- situation_triggers 是让未来查询能命中此条经验的关键，务必填写具体场景，不要写抽象词语（如\"安装失败\"）。"
+        "\n  例：[\"poetry 项目\", \"pyproject.toml 含 [tool.poetry]\", \"误用 pip install 代替 poetry install\"]"
+        "\n- 【对超时/失败轨迹同样适用】失败轨迹中最有价值的模式往往是："
+        "\n    1. agent 反复循环却未收敛的操作——例如逐个安装依赖后 verify，应一次批量收集所有缺包再安装"
+        "\n    2. 废弃包/版本断崖的识别——某包最新版不兼容当前 Python/框架，应降版本或放弃"
+        "\n    3. 某包在当前 Python 版本下没有可用实现（如 PyPI 只有 Python 2 版本），需记录包名及替代方案"
+        "\n    这类踩坑经验对未来 agent 规避相同陷阱极为关键，必须提炼。"
         "\n- 不要生成 id 字段，系统会自动分配唯一 ID。"
         "\n"
         "\n回答必须是严格的 JSON 对象，不包含任何多余文字。"
@@ -478,7 +490,6 @@ def build_traj_prompt(
         "commands_history_text": commands_text,  # 命令执行历史
         "error_snippets_text": errors_text,  # 错误日志片段
         "xpu_schema": {  # XPU 输出格式说明
-            "id": "string，唯一标识，如 xpu_env_py_xxx",
             "context": {
                 "lang": "例如 python",
                 "os": ["相关操作系统，如 linux 等"],
@@ -488,12 +499,31 @@ def build_traj_prompt(
             "signals": {
                 "regex": ["匹配该错误的正则表达式"],
                 "keywords": ["用于粗略检索的关键词"],
+                "situation_triggers": (
+                    "2-4 条字符串，描述「在什么项目/工具/状态下」这条经验适用，"
+                    "例：[\"poetry 项目\", \"pyproject.toml 含 [tool.poetry]\", \"误用 pip install 代替 poetry install\"]，"
+                    "越具体越好，用于向量检索召回"
+                ),
             },
             "advice_nl": ["1-5 条中文建议，解释问题根因和修复思路"],
             "atoms": [
                 {
-                    "name": "原子操作类型，如 pip_install / pip_pin / or_upgrade_pkg / set_env / set_umask 等",
-                    "args": "一个字典，包含该原子需要的参数",
+                    "name": (
+                        "【必须且只能使用以下名称之一，禁止自造名称】\n"
+                        "  pip_install   — args: {name: '包名或.或.[extra]', spec: '>=1.0', flags: []}\n"
+                        "  pip_pin       — args: {name: '包名', spec: '==1.2.3'}\n"
+                        "  apt_install   — args: {packages: ['pkg1', 'pkg2']}\n"
+                        "  shell         — args: {cmd: '任意 bash 命令'}  ← 以上不够用时的通用兜底\n"
+                        "  set_env       — args: {key: 'VAR', value: 'val'}\n"
+                        "  set_umask     — args: {value: '0o022'}\n"
+                        "  set_django_setting — args: {key: 'SETTING', value: 'val'}\n"
+                        "  or_upgrade_pkg     — args: {name: '包名', min_version: '1.0'}\n"
+                        "  conda_install — args: {packages: ['pkg']}\n"
+                        "  npm_install   — args: {packages: ['pkg']}\n"
+                        "  set_pytest_flag    — args: {name: '--flag', value: 'val'}\n"
+                        "  adjust_command     — args: {cmd: '修正后的完整命令'}"
+                    ),
+                    "args": "按照上方对应 name 的格式填写",
                 }
             ],
         },
@@ -503,7 +533,7 @@ def build_traj_prompt(
             "当 decision='skip' 时，表示整条轨迹没有任何值得提炼的经验，xpus 为空数组 []。"
             "当 decision='xpu' 时，xpus 是一个数组，包含一条或多条与 xpu_schema 兼容的 XPU 对象，"
             "每条 XPU 对应轨迹中一个独立的环境问题及其修复方案。"
-            "每条 XPU 的 id 必须唯一（如 xpu_env_py_001, xpu_env_py_002）。"
+            "不要生成 id 字段，系统会自动分配唯一 ID。"
             "所有说明性文字使用简体中文。"
         ),
         "language": cfg.get("llm_language", "zh"),

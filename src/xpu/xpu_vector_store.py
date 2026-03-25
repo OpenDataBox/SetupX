@@ -205,6 +205,8 @@ def build_xpu_text(entry: XpuEntry) -> str:
         parts.append(f"Matching signals: {keywords_str}")
     if signals.get("regex"):
         parts.append(f"Error patterns: {', '.join(signals['regex'])}")
+    if signals.get("situation_triggers"):
+        parts.append(f"Situation: {'; '.join(signals['situation_triggers'])}")
 
     # 拼接自然语言建议
     if entry.advice_nl:

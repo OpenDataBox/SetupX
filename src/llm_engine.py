@@ -623,6 +623,7 @@ You MUST respond in JSON format with this schema:
             return AgentAction(
                 action_type=ActionType.VERIFY,
                 thought=thought,
+                verify_hint=content.get("hint"),
             )
         else:
             # 未知动作类型：降级为 SHELL_COMMAND 处理

@@ -42,10 +42,6 @@ log/
 .DS_Store
 Thumbs.db
 
-# Claude/Gemini CLI
-.claude/
-.gemini/
-
 # 运行日志
 runs/
 
@@ -54,7 +50,6 @@ data/trajectories/
 data/step1_logs/
 data/xpu_extracted/
 
-AGENTS.md
 experiment/qwen_code/node_modules/
 experiment/opencode/node_modules/
 experiment/claude_code/node_modules/

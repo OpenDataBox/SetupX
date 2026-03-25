@@ -64,6 +64,7 @@ class EnvironmentManager:
         self._container: Container | None = None  # 当前管理的容器实例
         self._config = get_config().docker  # 获取 Docker 相关配置（镜像、工作目录、超时等）
         self._env_vars: dict[str, str] = {}  # 存储通过 set_env() 设置的环境变量
+        self._repo_dir_override: str | None = None  # attach() 时指定的工作目录覆盖
         # 快照栈：使用列表模拟栈结构，存储快照标签（tag）
         # rollback 时弹出栈顶，可连续回滚到更早的状态
         self._history_snapshots: list[str] = []
@@ -71,6 +72,25 @@ class EnvironmentManager:
         # True = create_container() 场景：仓库克隆到 {work_dir}/repo，exec_run 默认在 {work_dir}/repo
         # False = from_dockerfile()/from_container() 场景：仓库直接在 work_dir 下，不追加 /repo
         self._repo_subdir = True
+        # 启动时清理上次进程崩溃遗留的 checkpoint 镜像
+        self._cleanup_stale_checkpoints()
+
+    def _cleanup_stale_checkpoints(self) -> None:
+        """清理上次进程异常退出遗留的 setup_agent_checkpoint 镜像"""
+        try:
+            stale = self._client.images.list(name="setup_agent_checkpoint")
+            if not stale:
+                return
+            logger.info(f"发现 {len(stale)} 个遗留 checkpoint 镜像，清理中...")
+            for img in stale:
+                try:
+                    self._client.images.remove(img.id, force=True)
+                    logger.debug(f"已清理遗留镜像: {img.tags}")
+                except DockerException as e:
+                    logger.warning(f"清理遗留镜像失败 {img.tags}: {e}")
+            logger.info("遗留 checkpoint 镜像清理完成")
+        except DockerException as e:
+            logger.warning(f"查询遗留 checkpoint 镜像失败: {e}")
 
     @classmethod
     def _create_with_work_dir(cls, work_dir: str) -> "EnvironmentManager":
@@ -181,6 +201,15 @@ class EnvironmentManager:
     def history_snapshots(self) -> list[str]:
         """获取快照历史栈的副本（防止外部修改内部状态）"""
         return self._history_snapshots.copy()
+
+    def attach(self, container_id: str, repo_dir: str | None = None) -> None:
+        """接管已有容器（不创建新容器、不克隆仓库）。
+        repo_dir: 仓库在容器内的完整路径，若指定则 exec_run 默认 cd 到此路径。
+        """
+        self._container = self._client.containers.get(container_id)
+        if repo_dir:
+            self._repo_dir_override = repo_dir
+        logger.info(f"已接管容器: {self._container.id[:12]}, repo_dir={repo_dir or 'default'}")
 
     def create_container(self, repo_url: str) -> str:
         """创建并启动容器，克隆目标仓库
@@ -296,7 +325,9 @@ class EnvironmentManager:
 
         # 确定工作目录
         if work_dir is None:
-            if self._repo_subdir:
+            if self._repo_dir_override:
+                work_dir = self._repo_dir_override
+            elif self._repo_subdir:
                 # create_container() 场景：仓库在 {work_dir}/repo
                 work_dir = f"{self._config.work_dir}/repo"
             else:
@@ -529,6 +560,27 @@ class EnvironmentManager:
         self.destroy()  # 销毁容器
         self.cleanup_snapshots()  # 清理快照镜像
         logger.info("资源清理完成")
+
+    def get_env_snapshot(self) -> str:
+        """获取容器环境快照，供检察官/法官了解当前环境状态。"""
+        cmd = (
+            "echo '--- Python 解释器 ---' && "
+            "which python3 python 2>/dev/null; python3 --version 2>/dev/null; "
+            "echo '--- 虚拟环境 ---' && "
+            "ls -d */venv */env */.venv venv .venv env 2>/dev/null || echo '(未发现)'; "
+            "echo \"VIRTUAL_ENV=$VIRTUAL_ENV\"; "
+            "echo \"CONDA_PREFIX=$CONDA_PREFIX\"; "
+            "echo '--- PATH ---' && echo \"$PATH\"; "
+            "echo '--- 项目标记文件 ---' && "
+            "ls pyproject.toml setup.py setup.cfg requirements.txt "
+            "CMakeLists.txt Makefile configure meson.build "
+            "package.json Cargo.toml go.mod pom.xml build.gradle 2>/dev/null || echo '(无)'; "
+            "echo '--- 工作目录 ---' && pwd && ls | head -30"
+        )
+        result = self.exec_run(cmd, timeout=15)
+        if result.success:
+            return result.stdout[:2000]
+        return f"(快照获取失败: exit_code={result.exit_code})"
 
     def __enter__(self):
         """支持 with 语句（上下文管理器入口）"""

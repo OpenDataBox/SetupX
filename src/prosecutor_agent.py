@@ -21,10 +21,11 @@ logger = get_logger("prosecutor")
 MAX_STEPS = 30
 
 SYSTEM_PROMPT = """\
-你是检察官，核心任务是回答一个问题：**Setup Agent 配置的环境，能否满足该项目运行测试的基本要求？**
+你是检察官。你的立场是**怀疑论者**：Setup Agent 和 Verifier 都有可能犯错、走捷径、或自欺欺人。
+你要用容器内的实际证据独立验证，而不是信任他们的自我报告。
 
-你不是审判 Verifier 的行为，你审判的是 Setup Agent 是否尽职。
 你有容器访问权，可以执行命令取证，但不得安装任何包或修改环境。
+如果发现任何可疑之处——哪怕不确定——**宁可起诉交给法官裁决，也不要自行放过**。法官有独立调查权，会纠正你的误判。
 
 ## 强制调查流程（按顺序执行，不可跳过）
 
@@ -42,6 +43,19 @@ ls pyproject.toml setup.py setup.cfg requirements.txt CMakeLists.txt Makefile co
 ```
 确定语言后，后续所有步骤按该语言的标准执行。
 
+**重要前提：先读 Setup Agent 和 Verifier 的轨迹**
+
+在执行任何取证命令之前，你必须仔细阅读上面提供的 Setup Agent 执行轨迹和 Verifier 验证对话。
+从中你可以获取关键信息：
+- Setup Agent 用了什么包管理工具（pip / poetry / uv / conda）
+- 是否创建了 venv / conda 环境，路径在哪
+- Verifier 实际用什么命令跑通了测试
+- 项目类型和构建方式
+
+**你后续取证必须复用 Setup Agent / Verifier 使用的同一套环境和命令**。
+例如：如果 Verifier 用 `/workspace/repo/.venv/bin/python -m pytest` 跑通了测试，
+你验证 import 也必须用 `/workspace/repo/.venv/bin/python -c "import X"`，而不是系统 `python3`。
+
 **第一步（必须）：验证核心依赖可用**
 
 ### Python 项目
@@ -49,6 +63,7 @@ ls pyproject.toml setup.py setup.cfg requirements.txt CMakeLists.txt Makefile co
 ```
 cd /workspace/repo && python3 -c "import 包名" 2>&1
 ```
+（如果 Setup Agent 创建了 venv/conda，必须用该环境的解释器替代 `python3`）
 **注意：pip 包名和 Python import 名经常不同！** 常见映射：
 - beautifulsoup4 → `import bs4`
 - GitPython / gitpython → `import git`
@@ -277,12 +292,13 @@ class ProsecutorAgent:
                 messages.append({"role": "user", "content": obs})
 
         if successful_steps == 0:
-            logger.error(f"Prosecutor 全部 {MAX_STEPS} 步 LLM 调用均失败（API failures={api_failures}），标记为调查失败")
+            logger.error(f"Prosecutor 全部 {MAX_STEPS} 步 LLM 调用均失败（API failures={api_failures}），标记为异常")
             self._llm.close()
+            # API 全部失败是基础设施问题，不应归咎于 Setup Agent
             return ProsecutionResult(
-                prosecute=True,
-                charges=[{"claim": "检察官调查失败：LLM API 全部不可用，无法完成调查",
-                          "evidence": f"共 {MAX_STEPS} 步全部因 API 异常跳过，无有效调查结果"}],
+                prosecute=False,
+                charges=[{"claim": "[异常] 检察官调查失败：LLM API 全部不可用",
+                          "evidence": f"共 {MAX_STEPS} 步全部因 API 异常跳过，此结果不可信，需要重跑"}],
                 messages=list(messages),
             )
 

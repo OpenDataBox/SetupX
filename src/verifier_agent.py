@@ -203,6 +203,7 @@ class VerifierAgent:
             exit_code=-1,
             stdout="",
             stderr=f"verifier 达到最大步数 {self._max_steps}",
+            messages=list(messages),
         )
 
     def _write_file(self, path: str, content: str) -> bool:
@@ -221,9 +222,14 @@ class VerifierAgent:
     def _parse_json(raw: str) -> dict:
         """宽松解析 LLM 输出中的 JSON"""
         raw = raw.strip()
+        # 剥离 qwen 等模型输出的 <think>...</think> 推理过程
+        if "<think>" in raw:
+            raw = re.sub(r"<think>.*?</think>\s*", "", raw, flags=re.DOTALL).strip()
         # 1. 直接解析
         try:
-            return json.loads(raw)
+            result = json.loads(raw)
+            if isinstance(result, dict):
+                return result
         except json.JSONDecodeError:
             pass
         # 2. 提取 ```json ... ```

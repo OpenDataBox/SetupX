@@ -57,6 +57,7 @@ class XPUSuggestion:
     commands: list[str]       # 具体的 Shell 指令
     confidence: float         # 置信度 0-1
     source: str = "mock"      # 来源（mock/http）
+    atoms: list[dict] = field(default_factory=list)  # 原始 atom 结构，用于类型感知执行
 
     def to_dict(self) -> dict:
         return {
@@ -206,6 +207,8 @@ class SetupResult:
             "completed": self.completed,
             "steps_taken": self.steps_taken,
             "final_message": self.final_message,
+            "history": self.history,
+            "last_verify_messages": self.last_verify_messages,
         }
 
 

@@ -447,12 +447,10 @@ class RetrieverAgent:
 
             advice = c.get("advice_nl") or []
             advice_text = "\n".join(advice)
-            if reason and advice_text:
-                description = f"[Retriever] {reason}\n建议: {advice_text}"
-            elif advice_text:
-                description = advice_text
+            if reason:
+                description = f"[经验] {advice_text}\n[匹配理由] {reason}"
             else:
-                description = f"[Retriever] {reason}" if reason else ""
+                description = advice_text
 
             suggestions.append(XPUSuggestion(
                 id=xpu_id,

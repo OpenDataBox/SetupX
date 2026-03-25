@@ -123,10 +123,12 @@ class JudgeAgent:
 
         prosecution_summary = self._format_prosecution()
         setup_summary = self._format_setup_history()
+        verify_summary = self._format_verify_messages()
 
         user_content = (
             f"## 容器环境快照\n\n```\n{env_snapshot}\n```\n\n"
             f"## Setup Agent 执行轨迹（最近20步）\n\n{setup_summary}\n\n"
+            f"## Verifier 验证记录\n\n{verify_summary}\n\n"
             f"## 检察官起诉书（共 {len(charges)} 条指控）\n\n{prosecution_summary}\n\n"
             f"请逐条验证以上指控。每条指控你可以执行最多 {MAX_VERIFY_PER_CHARGE} 条验证命令。"
             f"验证完所有指控后，输出最终裁决。"
@@ -215,8 +217,8 @@ class JudgeAgent:
             logger.error(f"强制裁决失败: {e}")
 
         self._llm.close()
-        # 检察官已起诉且法官无法完成验证 → 维持起诉（guilty），而非默认放人
-        return {"verdict": "guilty", "reasoning": "法官验证未完成（API失败或步数上限），维持检察官起诉"}
+        # 法官无法完成验证 → 标记异常，不做 guilty/not_guilty 判定
+        return {"verdict": "error", "reasoning": "法官验证未完成（API失败或步数上限）"}
 
     def _paper_trial(self) -> dict:
         """纸面审判（无容器，向后兼容）"""
@@ -252,10 +254,10 @@ class JudgeAgent:
 
         try:
             result = self._parse_json(raw)
-            return {"verdict": result.get("verdict", "not_guilty"), "reasoning": result.get("reasoning", "")}
+            return {"verdict": result.get("verdict", "error"), "reasoning": result.get("reasoning", "")}
         except Exception as e:
             logger.error(f"裁决解析失败: {e}")
-            return {"verdict": "not_guilty", "reasoning": f"裁决解析失败: {e}"}
+            return {"verdict": "error", "reasoning": f"裁决解析失败: {e}"}
 
     def _format_setup_history(self) -> str:
         recent = self._setup_history[-20:]

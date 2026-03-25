@@ -437,6 +437,7 @@ class VectorXPUClient(XPUClientBase):
                 commands=commands,  # 可执行的 bash 命令列表
                 confidence=composite,  # 使用复合分数作为置信度
                 source="vector_db",  # 标记来源为向量数据库
+                atoms=atoms,  # 原始 atom 结构，用于类型感知执行
             )
             suggestions.append(suggestion)
             result_ids.append(xpu_id)

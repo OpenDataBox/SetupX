@@ -135,21 +135,24 @@ class SpeculativeSetupAgent:
             os_info = self._env.exec_run("cat /etc/os-release | head -2").stdout.strip()
 
             # --- 2b. 诊断与检索 ---
-            # 阶段A：LLM 生成情境描述（每步必触发，提供丰富上下文）
-            situation = self._llm.describe_situation(
-                history=self._state.get_recent_history(),
-                cwd=cwd,
-                os_info=os_info,
-                last_error=self._state.last_error,
-            )
-
-            # 阶段B：有错误时才检索 XPU 建议
+            # 有错误时才检索 XPU 建议
             self._current_xpu_suggestions = []
             if self._state.last_error:
                 exclude = list(self._state.tried_suggestions) if self._state.tried_suggestions else None
 
+                # 构建混合 situation：LLM 语义总结 + 原始命令/错误文本
+                # LLM 总结提供语义匹配质量（命中 situation_triggers/advice_nl）
+                # 原始文本保留关键词命中率（命中 keywords/regex）
+                llm_summary = self._llm.describe_situation(
+                    history=self._state.get_recent_history(),
+                    cwd=cwd,
+                    os_info=os_info,
+                    last_error=self._state.last_error,
+                )
+                raw_situation = self._build_situation(self._state.last_error)
+                situation = f"{llm_summary}\n\n{raw_situation}"
+
                 if self._retriever:
-                    # 使用 LLM 情境描述 + RetrieverAgent 两层检索（向量粗筛 + LLM 精读 + 延迟审计）
                     self._current_xpu_suggestions = self._retriever.retrieve(
                         situation=situation,
                         exclude_ids=exclude,
@@ -439,6 +442,8 @@ class SpeculativeSetupAgent:
                 "stderr": "",
             },
         })
+        # SET_ENV 是主动配置动作，清除之前的错误状态，避免 LLM 继续纠结旧错误
+        self._state.last_error = None
 
     def _handle_rollback_env(self, action: AgentAction) -> None:
         """处理 ROLLBACK_ENV 动作：回滚容器到最近快照
@@ -548,6 +553,40 @@ class SpeculativeSetupAgent:
                 "stderr": "",
             },
         })
+
+    # =========================================================================
+    # 情境构建（供向量检索使用）
+    # =========================================================================
+
+    def _build_situation(self, last_error: str) -> str:
+        """构建原始情境文本（命令历史 + 错误原文 + 仓库信息）
+
+        与 describe_situation() 的 LLM 语义总结配合使用：
+        - LLM 总结：语义化，匹配经验库的 situation_triggers 和 advice_nl
+        - 原始文本：保留关键词，匹配经验库的 keywords 和 regex
+        """
+        parts = []
+
+        recent = self._state.get_recent_history(3)
+        if recent:
+            done_steps = []
+            for entry in recent:
+                action = entry.get("action", {})
+                cmd = action.get("content", {}).get("command", "")
+                if cmd:
+                    result = entry.get("result", {})
+                    exit_code = result.get("exit_code", "?")
+                    done_steps.append(f"  {cmd} (exit={exit_code})")
+            if done_steps:
+                parts.append("已执行的操作:\n" + "\n".join(done_steps))
+
+        if last_error:
+            error_text = last_error[:1500] if len(last_error) > 1500 else last_error
+            parts.append(f"当前遇到的问题:\n{error_text}")
+
+        parts.append(f"目标仓库: {self._state.repo_url}")
+
+        return "\n\n".join(parts)
 
     # =========================================================================
     # 经验存储（Online Learning）
