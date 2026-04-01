@@ -12,8 +12,13 @@ from dotenv import load_dotenv
 # 项目根目录
 PROJECT_ROOT = Path(__file__).parent.parent
 
-# 加载 .env 文件
-load_dotenv(PROJECT_ROOT / ".env", override=True)
+def _load_env_files() -> None:
+    """按顺序加载仓库级配置和本地覆写配置。"""
+    load_dotenv(PROJECT_ROOT / ".env", override=True)
+    load_dotenv(PROJECT_ROOT / ".env.local", override=True)
+
+
+_load_env_files()
 
 
 @dataclass(frozen=True)

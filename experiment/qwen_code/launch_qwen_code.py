@@ -20,6 +20,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 QWEN_DIR = Path(__file__).resolve().parent
 
 load_dotenv(PROJECT_ROOT / ".env", override=True)
+load_dotenv(PROJECT_ROOT / ".env.local", override=True)
 
 
 def parse_args() -> argparse.Namespace:
