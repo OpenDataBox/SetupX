@@ -2,13 +2,26 @@ import { mkdirSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import process from "node:process";
 
-import { createOpencode } from "@opencode-ai/sdk";
+import { createOpencode } from "@opencode-ai/sdk/v2";
 
 type CliArgs = {
   repository: string;
   repoUrl: string;
   revision: string;
   taskPrompt: string;
+};
+
+type SessionMessage = {
+  info: {
+    id: string;
+    role: string;
+  };
+  parts: unknown[];
+};
+
+type OpencodeEvent = {
+  type: string;
+  properties?: Record<string, unknown>;
 };
 
 function parseArgs(argv: string[]): CliArgs {
@@ -157,79 +170,151 @@ async function parseJsonResponse(response: Response): Promise<unknown> {
 }
 
 async function sendPromptAsync(
-  serverUrl: string,
+  client: Awaited<ReturnType<typeof createOpencode>>["client"],
   sessionId: string,
   cwd: string,
   providerId: string,
   model: string,
   prompt: string,
 ): Promise<void> {
-  const url = new URL(`/session/${sessionId}/prompt_async`, serverUrl);
-  url.searchParams.set("directory", cwd);
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
+  const response = await client.session.promptAsync({
+    sessionID: sessionId,
+    directory: cwd,
+    model: {
+      providerID: providerId,
+      modelID: model,
     },
-    body: JSON.stringify({
-      model: {
-        providerID: providerId,
-        modelID: model,
-      },
-      parts: [{ type: "text", text: prompt }],
-    }),
+    parts: [{ type: "text", text: prompt }],
   });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`OpenCode prompt_async 失败: ${response.status} ${response.statusText} ${body}`);
+  if (response.error) {
+    throw new Error(`OpenCode promptAsync 失败: ${JSON.stringify(response.error)}`);
   }
-}
-
-async function fetchSessionStatuses(serverUrl: string): Promise<Record<string, unknown>> {
-  const url = new URL("/session/status", serverUrl);
-  const data = await parseJsonResponse(await fetch(url));
-  return (data as Record<string, unknown> | null) ?? {};
 }
 
 async function fetchSessionMessages(serverUrl: string, sessionId: string, cwd: string): Promise<Array<{ info: { id: string; role: string }; parts: unknown[] }>> {
   const url = new URL(`/session/${sessionId}/message`, serverUrl);
   url.searchParams.set("directory", cwd);
   const data = await parseJsonResponse(await fetch(url));
-  return (data as Array<{ info: { id: string; role: string }; parts: unknown[] }> | null) ?? [];
+  return (data as SessionMessage[] | null) ?? [];
 }
 
-async function waitForAssistantMessage(
+function emitSessionMessage(sessionId: string, message: SessionMessage): void {
+  process.stdout.write(`${JSON.stringify({
+    type: "session_message",
+    session_id: sessionId,
+    role: message.info.role,
+    message_id: message.info.id,
+    parts: message.parts,
+  })}\n`);
+}
+
+function emitSessionPart(sessionId: string, role: string, messageId: string, part: unknown): void {
+  process.stdout.write(`${JSON.stringify({
+    type: "session_message",
+    session_id: sessionId,
+    role,
+    message_id: messageId,
+    parts: [part],
+  })}\n`);
+}
+
+function emitCommandExecuted(sessionId: string, properties: Record<string, unknown>): void {
+  process.stdout.write(`${JSON.stringify({
+    type: "command_executed",
+    session_id: sessionId,
+    message_id: properties.messageID,
+    name: properties.name,
+    arguments: properties.arguments,
+  })}\n`);
+}
+
+function getEventSessionId(event: OpencodeEvent): string | undefined {
+  const properties = event.properties ?? {};
+  const info = properties.info;
+  if (typeof properties.sessionID === "string") {
+    return properties.sessionID;
+  }
+  if (info && typeof info === "object" && typeof (info as Record<string, unknown>).sessionID === "string") {
+    return String((info as Record<string, unknown>).sessionID);
+  }
+  if (properties.part && typeof properties.part === "object") {
+    const partSessionId = (properties.part as Record<string, unknown>).sessionID;
+    if (typeof partSessionId === "string") {
+      return partSessionId;
+    }
+  }
+  return undefined;
+}
+
+async function waitForSessionCompletion(
+  client: Awaited<ReturnType<typeof createOpencode>>["client"],
   serverUrl: string,
   sessionId: string,
   cwd: string,
-  previousAssistantIds: Set<string>,
-): Promise<unknown> {
-  const deadline = Date.now() + getTimeoutMs();
-  const pollIntervalMs = getPollIntervalMs();
+  signal: AbortSignal,
+): Promise<SessionMessage | null> {
+  const subscription = await client.event.subscribe(
+    { directory: cwd },
+    {
+      signal,
+      sseMaxRetryAttempts: 5,
+    },
+  );
 
-  while (Date.now() < deadline) {
-    const [statusResult, messagesResult] = await Promise.all([
-      fetchSessionStatuses(serverUrl),
-      fetchSessionMessages(serverUrl, sessionId, cwd),
-    ]);
+  let lastStatus = "unknown";
 
-    const currentStatus = statusResult[sessionId];
-    const messages = messagesResult;
-    const assistantMessage = [...messages]
-      .reverse()
-      .find((message) => message.info.role === "assistant" && !previousAssistantIds.has(message.info.id));
+  try {
+    for await (const event of subscription.stream as AsyncGenerator<OpencodeEvent>) {
+      const eventSessionId = getEventSessionId(event);
+      if (eventSessionId !== sessionId) {
+        continue;
+      }
 
-    if (assistantMessage && isTerminalStatus(currentStatus)) {
-      return assistantMessage;
+      const properties = event.properties ?? {};
+      if (event.type === "message.part.updated") {
+        const part = properties.part;
+        if (!part || typeof part !== "object") {
+          continue;
+        }
+        const partRecord = part as Record<string, unknown>;
+        const messageId = String(partRecord.messageID ?? "");
+        if (!messageId) {
+          continue;
+        }
+
+        const messages = await fetchSessionMessages(serverUrl, sessionId, cwd);
+        const message = messages.find((item) => item.info.id === messageId);
+        const role = message?.info.role ?? "assistant";
+        emitSessionPart(sessionId, role, messageId, partRecord);
+      } else if (event.type === "command.executed") {
+        emitCommandExecuted(sessionId, properties);
+      } else if (event.type === "session.status") {
+        const status = properties.status;
+        lastStatus =
+          status && typeof status === "object" && typeof (status as Record<string, unknown>).type === "string"
+            ? String((status as Record<string, unknown>).type)
+            : "unknown";
+        process.stderr.write(`等待 OpenCode 完成，当前状态: ${describeStatus(status)}\n`);
+      } else if (event.type === "session.idle") {
+        const messages = await fetchSessionMessages(serverUrl, sessionId, cwd);
+        const lastAssistantMessage = [...messages].reverse().find((message) => message.info.role === "assistant") ?? null;
+        return lastAssistantMessage;
+      } else if (event.type === "session.error") {
+        throw new Error(`OpenCode session 出错: ${JSON.stringify(properties)}`);
+      }
     }
-
-    process.stderr.write(`等待 OpenCode 完成，当前状态: ${describeStatus(currentStatus)}\n`);
-    await sleep(pollIntervalMs);
+  } catch (error) {
+    if (signal.aborted) {
+      throw new Error(`OpenCode 执行超时，超过 ${getTimeoutMs()} ms 仍未完成`);
+    }
+    throw error;
   }
 
-  throw new Error(`OpenCode 执行超时，超过 ${getTimeoutMs()} ms 仍未完成`);
+  if (lastStatus !== "idle") {
+    throw new Error(`OpenCode 事件流提前结束，最后状态=${lastStatus}`);
+  }
+
+  return null;
 }
 
 async function runSession(prompt: string, cwd: string): Promise<void> {
@@ -271,33 +356,33 @@ async function runSession(prompt: string, cwd: string): Promise<void> {
 
   try {
     const session = await opencode.client.session.create({
-      body: {
-        title: `benchmark:${model}`,
-      },
-      query: {
-        directory: cwd,
-      },
+      title: `benchmark:${model}`,
+      directory: cwd,
     });
     if (!session.data) {
       throw new Error("创建 OpenCode session 失败，未返回 session 数据");
     }
 
-    const existingMessages = await fetchSessionMessages(opencode.server.url, session.data.id, cwd);
-    const previousAssistantIds = new Set(
-      existingMessages
-        .filter((message) => message.info.role === "assistant")
-        .map((message) => message.info.id),
-    );
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      abortController.abort();
+    }, getTimeoutMs());
 
-    await sendPromptAsync(opencode.server.url, session.data.id, cwd, providerId, model, prompt);
+    await sendPromptAsync(opencode.client, session.data.id, cwd, providerId, model, prompt);
 
-    const result = await waitForAssistantMessage(
+    const result = await waitForSessionCompletion(
+      opencode.client,
       opencode.server.url,
       session.data.id,
       cwd,
-      previousAssistantIds,
+      abortController.signal,
     );
-    printResponse(result);
+    clearTimeout(timeoutId);
+    printResponse({
+      type: "result",
+      session_id: session.data.id,
+      message: result,
+    });
   } finally {
     opencode.server.close();
   }

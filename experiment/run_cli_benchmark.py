@@ -307,9 +307,9 @@ def run_one(
 
     if verify_meta["verify_attempted"]:
         if verify_meta.get("phase2_attempted"):
-            success = bool(verify_meta.get("phase2_success"))
+            success = verify_meta.get("phase2_success")
         else:
-            success = bool(verify_meta["verify_success"])
+            success = verify_meta["verify_success"]
     else:
         success = judge_success(
             tool.get("judge_mode", "return_code"),
@@ -352,18 +352,23 @@ def run_one(
 
 def summarize_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
     total = len(rows)
-    success = sum(1 for row in rows if row["success"])
-    failed = total - success
+    success = sum(1 for row in rows if row["success"] is True)
+    failed = sum(1 for row in rows if row["success"] is False)
+    unknown = sum(1 for row in rows if row["success"] is None)
     timeout = sum(1 for row in rows if row["timeout"])
     avg_duration = round(sum(row["duration_sec"] for row in rows) / total, 2) if total else 0.0
     success_rate = round(success / total, 4) if total else 0.0
+    resolved = success + failed
+    resolved_success_rate = round(success / resolved, 4) if resolved else None
     return {
         "total": total,
         "success": success,
         "failed": failed,
+        "unknown": unknown,
         "timeout": timeout,
         "avg_duration_sec": avg_duration,
         "success_rate": success_rate,
+        "resolved_success_rate": resolved_success_rate,
     }
 
 
@@ -428,7 +433,12 @@ def main() -> int:
                 timeout=args.timeout,
             )
             rows.append(row)
-            status = "成功" if row["success"] else "失败"
+            if row["success"] is True:
+                status = "成功"
+            elif row["success"] is False:
+                status = "失败"
+            else:
+                status = "异常/未判定"
             print(f"[{done}/{total}] {tool['name']} | {row['repository']} | {status} | {row['duration_sec']}s")
 
     raw_path = run_dir / "raw_results.jsonl"

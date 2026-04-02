@@ -1,5 +1,5 @@
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import process from "node:process";
 
 type CliArgs = {
@@ -93,10 +93,11 @@ function resetDirectory(dir: string): void {
   }
 }
 
-function runClaude(prompt: string, cwd: string): void {
-  const format = process.env.CLAUDE_CODE_OUTPUT_FORMAT?.trim() || "json";
+async function runClaude(prompt: string, cwd: string): Promise<void> {
+  const format = process.env.CLAUDE_CODE_OUTPUT_FORMAT?.trim() || "stream-json";
   const maxTurns = process.env.CLAUDE_CODE_MAX_TURNS?.trim() || "200";
-  const verbose = toBool(process.env.CLAUDE_CODE_VERBOSE, false);
+  const verbose = toBool(process.env.CLAUDE_CODE_VERBOSE, format === "stream-json");
+  const includePartialMessages = toBool(process.env.CLAUDE_CODE_INCLUDE_PARTIAL_MESSAGES, false);
   const model = process.env.CLAUDE_CODE_MODEL?.trim() || process.env.ANTHROPIC_MODEL?.trim() || "";
   const commandEnv = {
     ...process.env,
@@ -114,38 +115,41 @@ function runClaude(prompt: string, cwd: string): void {
   if (verbose) {
     cliArgs.push("--verbose");
   }
+  if (format === "stream-json" && verbose && includePartialMessages) {
+    cliArgs.push("--include-partial-messages");
+  }
   if (model) {
     cliArgs.push("--model", model);
   }
 
-  const result = spawnSync(
-    "claude",
-    cliArgs,
-    {
-      cwd,
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "pipe"],
-      env: commandEnv,
-    },
-  );
-  if (result.stdout) {
-    process.stdout.write(result.stdout);
-    if (!result.stdout.endsWith("\n")) {
-      process.stdout.write("\n");
-    }
-  }
-  if (result.stderr) {
-    process.stderr.write(result.stderr);
-    if (!result.stderr.endsWith("\n")) {
-      process.stderr.write("\n");
-    }
-  }
-  if (result.error) {
-    throw result.error;
-  }
-  if (typeof result.status === "number" && result.status !== 0) {
-    throw new Error(`Claude Code 执行失败，退出码=${result.status}`);
-  }
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn(
+      "claude",
+      cliArgs,
+      {
+        cwd,
+        env: commandEnv,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+
+    child.stdout.on("data", (chunk: Buffer | string) => {
+      process.stdout.write(chunk);
+    });
+    child.stderr.on("data", (chunk: Buffer | string) => {
+      process.stderr.write(chunk);
+    });
+    child.on("error", (error) => {
+      reject(error);
+    });
+    child.on("close", (code) => {
+      if (typeof code === "number" && code !== 0) {
+        reject(new Error(`Claude Code 执行失败，退出码=${code}`));
+        return;
+      }
+      resolve();
+    });
+  });
 }
 
 function prepareWorkspace(repoUrl: string, revision: string): string {
@@ -222,18 +226,16 @@ function writeClaudeSettings(): void {
   );
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const workspaceDir = prepareWorkspace(args.repoUrl, args.revision);
   writeClaudeSettings();
   const prompt = buildPrompt(args.taskPrompt, args.repository);
-  runClaude(prompt, workspaceDir);
+  await runClaude(prompt, workspaceDir);
 }
 
-try {
-  main();
-} catch (error: unknown) {
+main().catch((error: unknown) => {
   const message = error instanceof Error ? error.stack || error.message : String(error);
   process.stderr.write(`${message}\n`);
   process.exit(1);
-}
+});

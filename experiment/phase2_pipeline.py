@@ -10,6 +10,7 @@ from src.environment_manager import EnvironmentManager
 from src.judge_agent import JudgeAgent
 from src.models import ProsecutionResult
 from src.prosecutor_agent import ProsecutorAgent
+from experiment.trajectory_parser import parse_claude_setup_history, parse_opencode_setup_history
 
 
 def serialize_prosecution(prosecution: ProsecutionResult | None) -> dict[str, Any] | None:
@@ -55,7 +56,7 @@ def build_external_tool_setup_history(
     output_text: str,
     return_code: int,
 ) -> list[dict[str, Any]]:
-    return [
+    history = [
         {
             "step": 1,
             "action": {
@@ -73,3 +74,15 @@ def build_external_tool_setup_history(
             },
         }
     ]
+
+    parsed_entries: list[dict[str, Any]] = []
+    if tool_name in {"open_code", "opencode"}:
+        parsed_entries = parse_opencode_setup_history(tool_name, output_text)
+    elif tool_name in {"claude_code", "claude"}:
+        parsed_entries = parse_claude_setup_history(tool_name, output_text)
+
+    for offset, entry in enumerate(parsed_entries, start=2):
+        entry["step"] = offset
+        history.append(entry)
+
+    return history
