@@ -1,0 +1,38 @@
+{
+  "generated_at": "2026-04-08T10:52:19",
+  "run_id": "20260408-094136-345864",
+  "overall": {
+    "total": 2,
+    "success": 1,
+    "failed": 1,
+    "unknown": 0,
+    "timeout": 1,
+    "avg_duration_sec": 1687.82,
+    "success_rate": 0.5,
+    "resolved_success_rate": 0.5
+  },
+  "tools": [
+    {
+      "tool": "claude_code",
+      "total": 1,
+      "success": 0,
+      "failed": 1,
+      "unknown": 0,
+      "timeout": 1,
+      "avg_duration_sec": 1800.11,
+      "success_rate": 0.0,
+      "resolved_success_rate": 0.0
+    },
+    {
+      "tool": "qwen_code",
+      "total": 1,
+      "success": 1,
+      "failed": 0,
+      "unknown": 0,
+      "timeout": 0,
+      "avg_duration_sec": 1575.53,
+      "success_rate": 1.0,
+      "resolved_success_rate": 1.0
+    }
+  ]
+}

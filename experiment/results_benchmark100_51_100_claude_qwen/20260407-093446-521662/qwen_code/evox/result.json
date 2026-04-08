@@ -1,0 +1,36 @@
+{
+  "tool": "qwen_code",
+  "repository": "evox",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/emi-group/evox",
+  "started_at": "2026-04-07T12:38:09",
+  "duration_sec": 909.47,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_51_100_claude_qwen/20260407-093446-521662/qwen_code/evox/run.log",
+  "command": ".venv/bin/python experiment/qwen_code/launch_qwen_code.py --repo-url https://github.com/emi-group/evox --repository evox --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_51_100_claude_qwen/20260407-093446-521662/qwen_code/evox",
+  "verify_attempted": true,
+  "verify_success": false,
+  "verify_result": {
+    "success": false,
+    "test_framework": "pytest",
+    "collect_count": 78,
+    "command": "",
+    "exit_code": 1,
+    "stdout": "测试运行结果：78 个用例收集，69 通过，7 失败，2 错误。失败根因：1) OpenGL 库无法加载 (AttributeError: 'NoneType' object has no attribute 'glGetError') 导致 mujoco 测试完全无法运行，这是系统级依赖缺失；2) torch._dynamo UncapturedHigherOrderOpError 和 torch.compile 相关错误，可能是 torch 版本兼容性问题；3) CEC2022 测试是代码本身数组转换问题。OpenGL 缺失和版本不兼容属于 Setup Agent 应处理的环境配置问题。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

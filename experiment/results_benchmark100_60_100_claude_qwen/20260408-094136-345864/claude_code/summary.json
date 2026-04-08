@@ -1,0 +1,11 @@
+{
+  "tool": "claude_code",
+  "total": 1,
+  "success": 0,
+  "failed": 1,
+  "unknown": 0,
+  "timeout": 1,
+  "avg_duration_sec": 1800.11,
+  "success_rate": 0.0,
+  "resolved_success_rate": 0.0
+}

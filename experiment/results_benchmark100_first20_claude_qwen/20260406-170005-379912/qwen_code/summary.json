@@ -1,0 +1,11 @@
+{
+  "tool": "qwen_code",
+  "total": 20,
+  "success": 18,
+  "failed": 2,
+  "unknown": 0,
+  "timeout": 0,
+  "avg_duration_sec": 529.75,
+  "success_rate": 0.9,
+  "resolved_success_rate": 0.9
+}

@@ -1,0 +1,36 @@
+{
+  "tool": "qwen_code",
+  "repository": "kedro",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/kedro-org/kedro",
+  "started_at": "2026-04-06T17:16:08",
+  "duration_sec": 339.52,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/qwen_code/kedro/run.log",
+  "command": ".venv/bin/python experiment/qwen_code/launch_qwen_code.py --repo-url https://github.com/kedro-org/kedro --repository kedro --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/qwen_code/kedro",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 1914,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "运行命令：/workspace/.venv/bin/python -m pytest tests/ --tb=short。结果：1914 collected, 1911 passed, 2 skipped, 1 failed。唯一失败的测试 test_run_logs_package_name_when_outside_project 是日志断言的细微差异问题，属于测试逻辑而非环境配置问题。所有依赖包已正确安装，kedro 以 editable 模式安装，无 ImportError 或 ModuleNotFoundError。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

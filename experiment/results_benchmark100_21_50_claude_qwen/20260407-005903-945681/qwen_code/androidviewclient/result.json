@@ -1,0 +1,36 @@
+{
+  "tool": "qwen_code",
+  "repository": "androidviewclient",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/dtmilano/androidviewclient",
+  "started_at": "2026-04-07T06:47:03",
+  "duration_sec": 297.14,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/qwen_code/androidviewclient/run.log",
+  "command": ".venv/bin/python experiment/qwen_code/launch_qwen_code.py --repo-url https://github.com/dtmilano/androidviewclient --repository androidviewclient --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/qwen_code/androidviewclient",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 42,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "运行命令：/workspace/.venv/bin/python -m pytest -v。结果：42 tests collected，19 passed, 2 skipped, 21 errors。errors 全部来自 tst/connected/ 目录，原因是缺少 SERIALNO 环境变量（需要连接 Android 设备），属于外部依赖问题，非 Setup 责任。mcp 和基础测试全部通过。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

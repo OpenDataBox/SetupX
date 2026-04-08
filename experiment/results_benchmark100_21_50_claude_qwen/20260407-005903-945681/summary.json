@@ -1,0 +1,38 @@
+{
+  "generated_at": "2026-04-07T09:10:39",
+  "run_id": "20260407-005903-945681",
+  "overall": {
+    "total": 60,
+    "success": 51,
+    "failed": 9,
+    "unknown": 0,
+    "timeout": 3,
+    "avg_duration_sec": 402.11,
+    "success_rate": 0.85,
+    "resolved_success_rate": 0.85
+  },
+  "tools": [
+    {
+      "tool": "claude_code",
+      "total": 30,
+      "success": 27,
+      "failed": 3,
+      "unknown": 0,
+      "timeout": 1,
+      "avg_duration_sec": 381.9,
+      "success_rate": 0.9,
+      "resolved_success_rate": 0.9
+    },
+    {
+      "tool": "qwen_code",
+      "total": 30,
+      "success": 24,
+      "failed": 6,
+      "unknown": 0,
+      "timeout": 2,
+      "avg_duration_sec": 422.32,
+      "success_rate": 0.8,
+      "resolved_success_rate": 0.8
+    }
+  ]
+}

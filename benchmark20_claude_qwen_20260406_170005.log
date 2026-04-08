@@ -1,0 +1,65 @@
+nohup: ignoring input
+运行命令: /home/yukai/project/setUpAgentOurs/.venv/bin/python experiment/run_cli_benchmark.py --tools-config experiment/configs/tools.claude_qwen.json --repo-list data/benchmark100.jsonl --limit 50 --tool-parallelism 2 --limit 20 --timeout 1800 --output-root experiment/results_benchmark100_first20_claude_qwen
+开始评测，共 20 个仓库，2 个工具，每仓库并发 2 个工具
+开始仓库: cookiecutter
+[1/40] qwen_code | cookiecutter | 成功 | 108.7s
+[2/40] claude_code | cookiecutter | 成功 | 165.36s
+开始仓库: datasets
+[3/40] claude_code | datasets | 成功 | 220.56s
+[4/40] qwen_code | datasets | 成功 | 426.97s
+开始仓库: kedro
+[5/40] qwen_code | kedro | 成功 | 339.52s
+[6/40] claude_code | kedro | 成功 | 607.15s
+开始仓库: litgpt
+[7/40] claude_code | litgpt | 失败 | 1012.16s
+[8/40] qwen_code | litgpt | 成功 | 1416.61s
+开始仓库: luigi
+[9/40] claude_code | luigi | 失败 | 268.48s
+[10/40] qwen_code | luigi | 成功 | 221.69s
+开始仓库: mopidy
+[11/40] claude_code | mopidy | 失败 | 508.54s
+[12/40] qwen_code | mopidy | 成功 | 858.44s
+开始仓库: pip
+[13/40] claude_code | pip | 成功 | 453.95s
+[14/40] qwen_code | pip | 成功 | 264.89s
+开始仓库: platformio-core
+[15/40] qwen_code | platformio-core | 成功 | 866.16s
+[16/40] claude_code | platformio-core | 失败 | 1275.13s
+开始仓库: poetry
+[17/40] qwen_code | poetry | 失败 | 299.68s
+[18/40] claude_code | poetry | 成功 | 250.41s
+开始仓库: supervision
+[19/40] qwen_code | supervision | 成功 | 733.54s
+[20/40] claude_code | supervision | 成功 | 818.87s
+开始仓库: autograd
+[21/40] claude_code | autograd | 成功 | 185.46s
+[22/40] qwen_code | autograd | 失败 | 167.17s
+开始仓库: featuretools
+[23/40] qwen_code | featuretools | 成功 | 1009.69s
+[24/40] claude_code | featuretools | 成功 | 663.56s
+开始仓库: guardrails
+[25/40] claude_code | guardrails | 成功 | 328.92s
+[26/40] qwen_code | guardrails | 成功 | 257.36s
+开始仓库: lark
+[27/40] claude_code | lark | 成功 | 57.19s
+[28/40] qwen_code | lark | 成功 | 101.74s
+开始仓库: nonebot2
+[29/40] qwen_code | nonebot2 | 成功 | 757.13s
+[30/40] claude_code | nonebot2 | 成功 | 388.84s
+开始仓库: pip-tools
+[31/40] qwen_code | pip-tools | 成功 | 380.17s
+[32/40] claude_code | pip-tools | 成功 | 409.39s
+开始仓库: river
+[33/40] qwen_code | river | 成功 | 388.66s
+[34/40] claude_code | river | 成功 | 542.75s
+开始仓库: tortoise-orm
+[35/40] qwen_code | tortoise-orm | 成功 | 141.72s
+[36/40] claude_code | tortoise-orm | 成功 | 155.49s
+开始仓库: trax
+[37/40] qwen_code | trax | 成功 | 1014.94s
+[38/40] claude_code | trax | 成功 | 881.92s
+开始仓库: umap
+[39/40] qwen_code | umap | 成功 | 840.15s
+[40/40] claude_code | umap | 成功 | 664.7s
+原始结果已写入: experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/raw_results.jsonl
+run 汇总已写入: experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/summary.json

@@ -1,0 +1,36 @@
+{
+  "tool": "claude_code",
+  "repository": "langgraph",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/langchain-ai/langgraph",
+  "started_at": "2026-04-07T11:14:56",
+  "duration_sec": 1198.53,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_51_100_claude_qwen/20260407-093446-521662/claude_code/langgraph/run.log",
+  "command": ".venv/bin/python experiment/claude_code/launch_claude_code.py --repo-url https://github.com/langchain-ai/langgraph --repository langgraph --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_51_100_claude_qwen/20260407-093446-521662/claude_code/langgraph",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 1549,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "运行 pytest 测试 1549 个（排除 postgres/redis/remote_graph 外部依赖），1512 passed, 3 skipped。失败的 2 个 remote_graph 测试因需要外部网络服务（httpx ConnectError），属于项目固有限制。环境配置正确：虚拟环境 /workspace/libs/langgraph/.venv 可用，pytest 及所有依赖包（langchain-core, langgraph-checkpoint, langgraph-sdk, langgraph-prebuilt, pydantic 等）已正确安装，无 ImportError。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

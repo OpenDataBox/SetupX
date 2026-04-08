@@ -1,0 +1,49 @@
+{
+  "tool": "qwen_code",
+  "repository": "python-holidays",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/vacanza/python-holidays",
+  "started_at": "2026-04-07T08:14:17",
+  "duration_sec": 23.25,
+  "success": false,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/qwen_code/python-holidays/run.log",
+  "command": ".venv/bin/python experiment/qwen_code/launch_qwen_code.py --repo-url https://github.com/vacanza/python-holidays --repository python-holidays --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/qwen_code/python-holidays",
+  "verify_attempted": true,
+  "verify_success": false,
+  "verify_result": {
+    "success": false,
+    "test_framework": "pytest",
+    "collect_count": 0,
+    "command": "",
+    "exit_code": 1,
+    "stdout": "运行测试失败：1) python3 -m pytest 报错 'No module named pytest'；2) import holidays 报错 'ModuleNotFoundError: No module named dateutil'。环境中仅安装了 mercurial 包，缺少所有项目依赖（pytest、python-dateutil 等）。这是 Setup Agent 应安装但未安装的包，属于 Setup 遗留问题。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": false,
+  "phase2_verdict": "guilty",
+  "phase2_reason": "逐条说明：指控 1 成立（验证确认 python3 -c 'import dateutil' 报错 ModuleNotFoundError）；指控 2 成立（验证确认 python3 -c 'import pytest' 报错 ModuleNotFoundError）；指控 3 成立（验证确认 python3 -c 'import holidays' 因缺少 dateutil 而失败）。综合裁决：Setup Agent 未安装项目核心依赖和测试依赖，导致项目无法正常运行和测试，判定有罪。",
+  "prosecution": {
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 python-dateutil（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c \"import dateutil\"\n输出: ModuleNotFoundError: No module named 'dateutil'"
+      },
+      {
+        "claim": "Setup Agent 未安装测试依赖 pytest（来源：pyproject.toml [dependency-groups.tests]）",
+        "evidence": "命令: python3 -c \"import pytest\"\n输出: ModuleNotFoundError: No module named 'pytest'"
+      },
+      {
+        "claim": "Setup Agent 未安装依赖导致 holidays 包无法导入（来源：holidays/holiday_base.py 依赖 dateutil）",
+        "evidence": "命令: python3 -c \"import holidays\"\n输出: ModuleNotFoundError: No module named 'dateutil'"
+      }
+    ]
+  },
+  "phase2_error": ""
+}

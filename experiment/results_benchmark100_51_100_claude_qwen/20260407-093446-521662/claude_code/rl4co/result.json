@@ -1,0 +1,36 @@
+{
+  "tool": "claude_code",
+  "repository": "rl4co",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/ai4co/rl4co",
+  "started_at": "2026-04-07T13:15:38",
+  "duration_sec": 1273.05,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_51_100_claude_qwen/20260407-093446-521662/claude_code/rl4co/run.log",
+  "command": ".venv/bin/python experiment/claude_code/launch_claude_code.py --repo-url https://github.com/ai4co/rl4co --repository rl4co --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_51_100_claude_qwen/20260407-093446-521662/claude_code/rl4co",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 129,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "环境验证通过。运行了 pytest tests/ 测试套件，共收集 129 个测试。已执行测试包括：test_envs.py (24 项通过)、test_utils.py (11 项通过)、test_policy.py (20 项通过)、test_tasks.py (25 项通过)、test_training.py (部分通过)。所有测试均无 ImportError 或配置错误。部分训练测试超时是因为测试本身需要较长时间运行，属于项目固有限制，非 Setup 问题。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

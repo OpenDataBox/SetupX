@@ -1,0 +1,36 @@
+{
+  "tool": "qwen_code",
+  "repository": "plotnine",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/has2k1/plotnine",
+  "started_at": "2026-04-07T03:39:25",
+  "duration_sec": 336.61,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/qwen_code/plotnine/run.log",
+  "command": ".venv/bin/python experiment/qwen_code/launch_qwen_code.py --repo-url https://github.com/has2k1/plotnine --repository plotnine --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/qwen_code/plotnine",
+  "verify_attempted": true,
+  "verify_success": false,
+  "verify_result": {
+    "success": false,
+    "test_framework": "pytest",
+    "collect_count": 531,
+    "command": "",
+    "exit_code": 1,
+    "stdout": "5 测试失败，均为 Setup 遗留问题：(1) test_lint/test_format 失败因 PATH 未包含 .venv/bin 导致 ruff 命令找不到；(2) test_no_after_scale_warning 失败因容器未配置 en_US.UTF-8 locale；(3) test_theme_xkcd 失败因 CI 环境变量未设置导致 skipif 未生效且系统缺少字体；(4) test_stack_non_linear_scale 警告数量断言失败可能因依赖版本不匹配。运行命令：/workspace/.venv/bin/python -m pytest tests/，收集 531 项测试，519 通过，5 失败，6 跳过。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

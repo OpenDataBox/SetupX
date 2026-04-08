@@ -1,0 +1,36 @@
+{
+  "tool": "claude_code",
+  "repository": "lark",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/lark-parser/lark",
+  "started_at": "2026-04-06T21:45:09",
+  "duration_sec": 57.19,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/claude_code/lark/run.log",
+  "command": ".venv/bin/python experiment/claude_code/launch_claude_code.py --repo-url https://github.com/lark-parser/lark --repository lark --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/claude_code/lark",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "unittest",
+    "collect_count": 1257,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "运行命令：python3 -m tests。结果：Ran 1257 tests in 5.297s, OK (skipped=159)。跳过的测试是因为可选依赖 nearley/js2py 未安装，属于项目固有限制，不是 Setup 问题。lark 包已正确安装（v1.3.1），核心功能测试全部通过。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

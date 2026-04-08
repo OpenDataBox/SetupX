@@ -1,0 +1,45 @@
+{
+  "tool": "qwen_code",
+  "repository": "django-autocomplete-light",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/yourlabs/django-autocomplete-light",
+  "started_at": "2026-04-07T04:40:34",
+  "duration_sec": 161.83,
+  "success": false,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/qwen_code/django-autocomplete-light/run.log",
+  "command": ".venv/bin/python experiment/qwen_code/launch_qwen_code.py --repo-url https://github.com/yourlabs/django-autocomplete-light --repository django-autocomplete-light --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/qwen_code/django-autocomplete-light",
+  "verify_attempted": true,
+  "verify_success": false,
+  "verify_result": {
+    "success": false,
+    "test_framework": "pytest",
+    "collect_count": 67,
+    "command": "",
+    "exit_code": 1,
+    "stdout": "运行 pytest test_project/ 发现 7 个收集错误：1) ModuleNotFoundError: No module named 'tagging' - django-tagging 在 requirements.txt 中但未安装；2) ModuleNotFoundError: No module named 'genericm2m' - django-generic-m2m 在 requirements.txt 中但未安装；3) ImportError: cannot import name 'force_text' from 'django.utils.encoding' - Django 5.x 兼容性问题。基础测试 6 个通过，但完整测试套件因缺包无法运行。Setup Agent 应安装 requirements.txt 中所有依赖。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": false,
+  "phase2_verdict": "guilty",
+  "phase2_reason": "逐条说明：指控 1 成立（django-tagging 在 requirements.txt 中声明但无法导入），指控 2 成立（django-generic-m2m 在 requirements.txt 中声明但无法导入）。两个核心依赖均未安装，属于 Setup Agent 失职。",
+  "prosecution": {
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 django-tagging（来源：test_project/requirements.txt 第 8 行）",
+        "evidence": "命令: cd /workspace && ./venv/bin/python -c \"import tagging\"\n输出: ModuleNotFoundError: No module named 'tagging'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 django-generic-m2m（来源：test_project/requirements.txt 第 3 行）",
+        "evidence": "命令: cd /workspace && ./venv/bin/python -c \"import genericm2m\"\n输出: ModuleNotFoundError: No module named 'genericm2m'"
+      }
+    ]
+  },
+  "phase2_error": ""
+}

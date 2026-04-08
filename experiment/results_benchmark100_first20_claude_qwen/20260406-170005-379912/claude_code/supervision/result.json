@@ -1,0 +1,36 @@
+{
+  "tool": "claude_code",
+  "repository": "supervision",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/roboflow/supervision",
+  "started_at": "2026-04-06T20:28:02",
+  "duration_sec": 818.87,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/claude_code/supervision/run.log",
+  "command": ".venv/bin/python experiment/claude_code/launch_claude_code.py --repo-url https://github.com/roboflow/supervision --repository supervision --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/claude_code/supervision",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 1232,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "运行命令：/workspace/.venv/bin/python -m pytest tests/ --tb=short。结果：1232 个测试用例全部通过，耗时 2.30 秒。警告主要是 NumPy 2.0 的弃用警告和项目自身的 DeprecationWarning，不影响功能。环境配置正确，项目已正确安装，依赖包版本兼容。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

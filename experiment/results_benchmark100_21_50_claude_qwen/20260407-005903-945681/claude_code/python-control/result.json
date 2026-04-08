@@ -1,0 +1,36 @@
+{
+  "tool": "claude_code",
+  "repository": "python-control",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/python-control/python-control",
+  "started_at": "2026-04-07T05:55:45",
+  "duration_sec": 342.28,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/claude_code/python-control/run.log",
+  "command": ".venv/bin/python experiment/claude_code/launch_claude_code.py --repo-url https://github.com/python-control/python-control --repository python-control --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/claude_code/python-control",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 4382,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "运行 pytest control/tests/ 共 3811 passed, 459 skipped, 11 xfailed。跳过的测试主要是因为可选依赖 slycot/pandas/cvxopt 未安装（这些在 pyproject.toml 中是 optional-dependencies），属于项目固有限制而非 Setup 问题。核心模块（config_test, xferfcn_test, statesp_test, timeresp_test, convert_test, delay_test 等）全部通过。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

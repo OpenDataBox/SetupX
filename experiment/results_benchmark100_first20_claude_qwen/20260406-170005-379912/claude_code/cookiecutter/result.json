@@ -1,0 +1,36 @@
+{
+  "tool": "claude_code",
+  "repository": "cookiecutter",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/cookiecutter/cookiecutter",
+  "started_at": "2026-04-06T17:00:05",
+  "duration_sec": 165.36,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/claude_code/cookiecutter/run.log",
+  "command": ".venv/bin/python experiment/claude_code/launch_claude_code.py --repo-url https://github.com/cookiecutter/cookiecutter --repository cookiecutter --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/claude_code/cookiecutter",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 383,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "运行 pytest tests/ 结果：379 passed, 4 skipped。跳过的测试均为 Windows 平台特定测试（非环境问题）。项目已正确安装在 /workspace/.venv 中，所有依赖正常，无 ImportError 或配置错误。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}
