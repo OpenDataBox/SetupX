@@ -12,6 +12,8 @@ import re
 import subprocess
 import sys
 import time
+import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -49,6 +51,12 @@ def parse_args() -> argparse.Namespace:
         default="experiment/results",
         help="结果根目录",
     )
+    parser.add_argument(
+        "--tool-parallelism",
+        type=int,
+        default=0,
+        help="每个仓库同时运行多少个 CLI 工具，0 表示按启用工具数自动设置",
+    )
     return parser.parse_args()
 
 
@@ -77,6 +85,20 @@ def read_jsonl(path: Path, limit: int) -> list[dict[str, Any]]:
     return items
 
 
+def get_repository_name(repo_obj: dict[str, Any]) -> str:
+    repository = str(repo_obj.get("repository") or repo_obj.get("repo") or "").strip()
+    if not repository:
+        raise KeyError("repository")
+    return repository
+
+
+def get_repository_url(repo_obj: dict[str, Any]) -> str:
+    repo_url = str(repo_obj.get("repo_url") or "").strip()
+    if repo_url:
+        return repo_url
+    return build_repo_url(get_repository_name(repo_obj))
+
+
 def build_repo_url(repository: str) -> str:
     if repository.startswith("http://") or repository.startswith("https://"):
         return repository
@@ -91,6 +113,10 @@ def build_repo_dir(run_dir: Path, tool_name: str, repository: str) -> Path:
     repo_dir = run_dir / sanitize_name(tool_name) / sanitize_name(repository)
     repo_dir.mkdir(parents=True, exist_ok=False)
     return repo_dir
+
+
+def build_repo_dir_path(run_dir: Path, tool_name: str, repository: str) -> Path:
+    return run_dir / sanitize_name(tool_name) / sanitize_name(repository)
 
 
 def render_template(template: str, mapping: dict[str, str]) -> str:
@@ -239,9 +265,9 @@ def run_one(
     repo_dir: Path,
     timeout: int,
 ) -> dict[str, Any]:
-    repository = repo_obj["repository"]
+    repository = get_repository_name(repo_obj)
     revision = repo_obj.get("revision", "HEAD")
-    repo_url = build_repo_url(repository)
+    repo_url = get_repository_url(repo_obj)
     task_prompt = render_template(
         prompt_template,
         {
@@ -350,6 +376,113 @@ def run_one(
     return row
 
 
+def build_crash_row(
+    tool: dict[str, Any],
+    repo_obj: dict[str, Any],
+    repo_dir: Path,
+    prompt_path: Path,
+    started_at: str,
+    duration_sec: float,
+    error_text: str,
+) -> dict[str, Any]:
+    repository = get_repository_name(repo_obj)
+    revision = repo_obj.get("revision", "HEAD")
+    repo_url = get_repository_url(repo_obj)
+    command = render_template(
+        tool["command_template"],
+        {
+            "repository": repository,
+            "repo_url": repo_url,
+            "revision": revision,
+            "task_prompt_path": str(prompt_path),
+            "task_prompt": "",
+            "repo_dir": str(repo_dir),
+        },
+    )
+    return {
+        "tool": tool["name"],
+        "repository": repository,
+        "revision": revision,
+        "repo_url": repo_url,
+        "started_at": started_at,
+        "duration_sec": duration_sec,
+        "success": False,
+        "timeout": False,
+        "return_code": -2,
+        "judge_mode": tool.get("judge_mode", "return_code"),
+        "log_path": str(repo_dir / "run.log"),
+        "command": command,
+        "repo_dir": str(repo_dir),
+        "verify_attempted": False,
+        "verify_success": False,
+        "verify_result": None,
+        "verify_error": error_text,
+        "phase2_attempted": False,
+        "phase2_success": False,
+        "phase2_verdict": None,
+        "phase2_reason": "",
+        "prosecution": None,
+        "phase2_error": "",
+    }
+
+
+def persist_row_artifacts(row: dict[str, Any]) -> dict[str, Any]:
+    repo_dir = Path(row["repo_dir"])
+    repo_dir.mkdir(parents=True, exist_ok=True)
+
+    log_path = Path(row["log_path"])
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    if not log_path.exists():
+        error_text = row.get("verify_error") or row.get("phase2_error") or "运行异常退出"
+        log_path.write_text(error_text + "\n", encoding="utf-8")
+
+    result_path = repo_dir / "result.json"
+    payload = dict(row)
+    payload.pop("result_path", None)
+    with result_path.open("w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+    row["result_path"] = str(result_path)
+    return row
+
+
+def run_one_safe(
+    tool: dict[str, Any],
+    repo_obj: dict[str, Any],
+    prompt_template: str,
+    prompt_path: Path,
+    repo_dir: Path,
+    timeout: int,
+) -> dict[str, Any]:
+    started_at = datetime.now().isoformat(timespec="seconds")
+    start_time = time.time()
+    try:
+        return run_one(
+            tool=tool,
+            repo_obj=repo_obj,
+            prompt_template=prompt_template,
+            prompt_path=prompt_path,
+            repo_dir=repo_dir,
+            timeout=timeout,
+        )
+    except Exception as exc:
+        duration_sec = round(time.time() - start_time, 2)
+        error_text = (
+            f"运行异常: {exc}\n"
+            f"{traceback.format_exc()}"
+        )
+        row = build_crash_row(
+            tool=tool,
+            repo_obj=repo_obj,
+            repo_dir=repo_dir,
+            prompt_path=prompt_path,
+            started_at=started_at,
+            duration_sec=duration_sec,
+            error_text=error_text,
+        )
+        return persist_row_artifacts(row)
+
+
 def summarize_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
     total = len(rows)
     success = sum(1 for row in rows if row["success"] is True)
@@ -381,6 +514,37 @@ def build_tool_summaries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for tool_name, tool_rows in sorted(grouped.items()):
         summaries.append({"tool": tool_name, **summarize_rows(tool_rows)})
     return summaries
+
+
+def write_incremental_outputs(run_dir: Path, rows: list[dict[str, Any]]) -> None:
+    raw_path = run_dir / "raw_results.jsonl"
+    with raw_path.open("w", encoding="utf-8") as f:
+        for row in rows:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+    tool_summaries = build_tool_summaries(rows)
+    for item in tool_summaries:
+        tool_summary_path = run_dir / sanitize_name(item["tool"]) / "summary.json"
+        with tool_summary_path.open("w", encoding="utf-8") as f:
+            json.dump(item, f, ensure_ascii=False, indent=2)
+
+    run_summary = {
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "run_id": run_dir.name,
+        "overall": summarize_rows(rows),
+        "tools": tool_summaries,
+    }
+    run_summary_path = run_dir / "summary.json"
+    with run_summary_path.open("w", encoding="utf-8") as f:
+        json.dump(run_summary, f, ensure_ascii=False, indent=2)
+
+
+def format_status(row: dict[str, Any]) -> str:
+    if row["success"] is True:
+        return "成功"
+    if row["success"] is False:
+        return "失败"
+    return "异常/未判定"
 
 
 def main() -> int:
@@ -417,51 +581,65 @@ def main() -> int:
     total = len(tools) * len(repos)
     done = 0
 
+    tool_parallelism = args.tool_parallelism or len(tools)
+    tool_parallelism = max(1, min(tool_parallelism, len(tools)))
+
     for tool in tools:
         tool_dir = run_dir / sanitize_name(tool["name"])
         tool_dir.mkdir(parents=True, exist_ok=False)
-        print(f"开始评测工具: {tool['name']}")
+
+    print(f"开始评测，共 {len(repos)} 个仓库，{len(tools)} 个工具，每仓库并发 {tool_parallelism} 个工具")
+
+    try:
         for repo_obj in repos:
-            done += 1
-            repo_dir = build_repo_dir(run_dir, tool["name"], repo_obj["repository"])
-            row = run_one(
-                tool=tool,
-                repo_obj=repo_obj,
-                prompt_template=prompt_template,
-                prompt_path=prompt_path,
-                repo_dir=repo_dir,
-                timeout=args.timeout,
-            )
-            rows.append(row)
-            if row["success"] is True:
-                status = "成功"
-            elif row["success"] is False:
-                status = "失败"
-            else:
-                status = "异常/未判定"
-            print(f"[{done}/{total}] {tool['name']} | {row['repository']} | {status} | {row['duration_sec']}s")
+            repository = get_repository_name(repo_obj)
+            print(f"开始仓库: {repository}")
+            with ThreadPoolExecutor(max_workers=tool_parallelism) as executor:
+                future_map = {}
+                for tool in tools:
+                    repo_dir = build_repo_dir(run_dir, tool["name"], repository)
+                    future = executor.submit(
+                        run_one_safe,
+                        tool,
+                        repo_obj,
+                        prompt_template,
+                        prompt_path,
+                        repo_dir,
+                        args.timeout,
+                    )
+                    future_map[future] = tool["name"]
+
+                for future in as_completed(future_map):
+                    tool_name = future_map[future]
+                    try:
+                        row = future.result()
+                    except Exception as exc:
+                        repo_dir = build_repo_dir_path(run_dir, tool_name, repository)
+                        error_text = f"并发任务异常: {exc}\n{traceback.format_exc()}"
+                        row = persist_row_artifacts(
+                            build_crash_row(
+                                tool=next(item for item in tools if item["name"] == tool_name),
+                                repo_obj=repo_obj,
+                                repo_dir=repo_dir,
+                                prompt_path=prompt_path,
+                                started_at=datetime.now().isoformat(timespec="seconds"),
+                                duration_sec=0.0,
+                                error_text=error_text,
+                            )
+                        )
+
+                    done += 1
+                    rows.append(row)
+                    write_incremental_outputs(run_dir, rows)
+                    print(
+                        f"[{done}/{total}] {row['tool']} | {row['repository']} | "
+                        f"{format_status(row)} | {row['duration_sec']}s"
+                    )
+    finally:
+        write_incremental_outputs(run_dir, rows)
 
     raw_path = run_dir / "raw_results.jsonl"
-    with raw_path.open("w", encoding="utf-8") as f:
-        for row in rows:
-            f.write(json.dumps(row, ensure_ascii=False) + "\n")
-
-    tool_summaries = build_tool_summaries(rows)
-    for item in tool_summaries:
-        tool_summary_path = run_dir / sanitize_name(item["tool"]) / "summary.json"
-        with tool_summary_path.open("w", encoding="utf-8") as f:
-            json.dump(item, f, ensure_ascii=False, indent=2)
-
-    run_summary = {
-        "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "run_id": run_dir.name,
-        "overall": summarize_rows(rows),
-        "tools": tool_summaries,
-    }
     run_summary_path = run_dir / "summary.json"
-    with run_summary_path.open("w", encoding="utf-8") as f:
-        json.dump(run_summary, f, ensure_ascii=False, indent=2)
-
     print(f"原始结果已写入: {raw_path}")
     print(f"run 汇总已写入: {run_summary_path}")
     return 0

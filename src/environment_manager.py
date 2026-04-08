@@ -109,6 +109,7 @@ class EnvironmentManager:
         instance._client = docker.from_env()  # 连接 Docker daemon
         instance._container = None
         instance._env_vars = {}
+        instance._repo_dir_override = None
         instance._history_snapshots = []
         instance._repo_subdir = False  # 外部容器/Dockerfile 场景不追加 /repo 子目录
         # 用原始配置的 base_image 和 timeout，但替换 work_dir

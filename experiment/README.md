@@ -28,7 +28,7 @@
    默认从 `data/python329.jsonl` 或自定义 JSONL 中读取仓库，字段至少包含 `repository`，可选 `revision`。
 
 2. 调用外部 CLI 工具执行仓库配置任务  
-   `run_cli_benchmark.py` 会读取 `tools.json`，按工具逐个运行 `command_template`。模板变量由脚本统一替换，包括仓库名、仓库 URL、任务提示词路径和任务全文。
+   `run_cli_benchmark.py` 会读取 `tools.json`。默认按“同一个仓库下多个工具并发”方式执行，也就是单个仓库会同时启动 `claude_code`、`open_code`、`qwen_code`。模板变量由脚本统一替换，包括仓库名、仓库 URL、任务提示词路径和任务全文。
 
 3. 复用当前仓库已有的 Docker、verify 和诉讼裁决 phase2 流程做统一验证  
    这是这套实验的关键：
@@ -37,7 +37,7 @@
    - 接管成功后，先统一调用 `VerifierAgent.verify()` 在容器内做黑箱验证，再复用与主流程一致的检察官/法官 phase2 裁决。
 
 4. 记录原始结果并汇总成功率  
-   每次运行会在 `results/<run_id>/` 下生成一套独立结果，并按 `run_id / tool / repo` 隔离落盘。脚本默认不覆盖历史实验。
+   每次运行会在 `results/<run_id>/` 下生成一套独立结果，并按 `run_id / tool / repo` 隔离落盘。脚本默认不覆盖历史实验。每个单仓库结果完成后会立刻刷新 `raw_results.jsonl`、tool 级 `summary.json` 和 run 级 `summary.json`，这样即使中途异常退出，也能保留已完成部分。
 
 ## Docker 与 Verify 复用约定
 
@@ -258,7 +258,8 @@ OpenCode 官方 SDK 说明：
 .venv/bin/python experiment/run_cli_benchmark.py \
   --tools-config experiment/configs/tools.json \
   --repo-list data/python329.jsonl \
-  --limit 10
+  --limit 10 \
+  --tool-parallelism 3
 ```
 
 汇总结果：
@@ -289,6 +290,12 @@ experiment/results/<run_id>/
 - `<tool>/summary.json`：tool 级汇总
 - `<tool>/<repo>/run.log`：单仓库原始日志
 - `<tool>/<repo>/result.json`：单仓库结构化结果
+
+额外说明：
+
+- `--tool-parallelism` 控制每个仓库下同时运行多少个工具；默认 `0` 表示自动使用启用工具数，也就是当前配置下默认并发跑 3 个 CLI。
+- benchmark 会在每个任务完成后实时刷新 `raw_results.jsonl` 和汇总文件，避免中途崩溃时整轮结果丢失。
+- 如果某个仓库在 launcher、verify 或 phase2 过程中抛出未捕获异常，脚本会兜底写出该仓库的 `run.log` 和 `result.json`，并继续处理其他任务。
 
 当启用统一验证时，`raw_results.jsonl` 里还会包含：
 

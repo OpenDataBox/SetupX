@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import subprocess
 import sys
@@ -19,6 +20,7 @@ from docker.errors import ImageNotFound
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CLAUDE_DIR = Path(__file__).resolve().parent
+IMAGE_FINGERPRINT_LABEL = "ai.setup_agent.claude_runner_fingerprint"
 
 load_dotenv(PROJECT_ROOT / ".env", override=True)
 load_dotenv(PROJECT_ROOT / ".env.local", override=True)
@@ -65,11 +67,45 @@ def get_exec_timeout_sec() -> int:
     return value if value > 0 else 1800
 
 
+def build_runner_fingerprint() -> str:
+    hasher = hashlib.sha256()
+    build_markers = [
+        f"CLAUDE_CODE_CLI_NPM_SPEC={os.getenv('CLAUDE_CODE_CLI_NPM_SPEC', '@anthropic-ai/claude-code')}",
+        f"CLAUDE_CODE_NPM_REGISTRY={os.getenv('CLAUDE_CODE_NPM_REGISTRY', 'https://registry.npmjs.org')}",
+    ]
+    for marker in build_markers:
+        hasher.update(marker.encode("utf-8"))
+        hasher.update(b"\0")
+
+    paths = [
+        CLAUDE_DIR / "Dockerfile",
+        CLAUDE_DIR / "package.json",
+        CLAUDE_DIR / "tsconfig.json",
+        *sorted((CLAUDE_DIR / "src").rglob("*")),
+    ]
+    for path in paths:
+        if not path.is_file():
+            continue
+        relative_path = path.relative_to(CLAUDE_DIR)
+        hasher.update(str(relative_path).encode("utf-8"))
+        hasher.update(b"\0")
+        hasher.update(path.read_bytes())
+        hasher.update(b"\0")
+    return hasher.hexdigest()
+
+
 def ensure_base_image(client: docker.DockerClient, image_tag: str, rebuild: bool) -> None:
+    fingerprint = build_runner_fingerprint()
     if not rebuild:
         try:
-            client.images.get(image_tag)
-            return
+            image = client.images.get(image_tag)
+            labels = image.labels or {}
+            if labels.get(IMAGE_FINGERPRINT_LABEL) == fingerprint:
+                return
+            print(
+                f"Claude Code 基础镜像指纹不匹配，准备重建: {image_tag}",
+                file=sys.stderr,
+            )
         except ImageNotFound:
             pass
 
@@ -83,6 +119,8 @@ def ensure_base_image(client: docker.DockerClient, image_tag: str, rebuild: bool
         "host",
         "-t",
         image_tag,
+        "--label",
+        f"{IMAGE_FINGERPRINT_LABEL}={fingerprint}",
         "--build-arg",
         f"CLAUDE_CODE_CLI_NPM_SPEC={os.getenv('CLAUDE_CODE_CLI_NPM_SPEC', '@anthropic-ai/claude-code')}",
         "--build-arg",
