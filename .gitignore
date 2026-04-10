@@ -61,3 +61,9 @@ output/
 experiment/results/
 experiment/results_small/
 exp_small.log
+
+data/step1_remaining/
+data/trajectories_remaining/
+data/xpu_extracted_remaining/
+*.pdf
+xpu_export.jsonl

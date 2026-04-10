@@ -31,7 +31,10 @@ def convert_log_to_traj(log_path, output_path=None):
     current_role = None
     buffer = []
 
-    with open(path, 'r', encoding='utf-8') as f:
+    # log 文件可能混有 docker 子进程输出的原始字节（非 utf-8），
+    # 用 errors='replace' 把非法字节换成 U+FFFD 以便继续解析，
+    # 而不是让一个坏字节杀死整条流水线
+    with open(path, 'r', encoding='utf-8', errors='replace') as f:
         for line in f:
             line = line.strip()
             parsed = parse_log_line(line)
