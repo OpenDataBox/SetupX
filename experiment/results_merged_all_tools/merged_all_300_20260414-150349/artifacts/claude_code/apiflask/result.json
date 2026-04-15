@@ -1,0 +1,36 @@
+{
+  "tool": "claude_code",
+  "repository": "apiflask",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/apiflask/apiflask",
+  "started_at": "2026-04-09T04:43:21",
+  "duration_sec": 182.77,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/claude_code/apiflask/run.log",
+  "command": ".venv/bin/python experiment/claude_code/launch_claude_code.py --repo-url https://github.com/apiflask/apiflask --repository apiflask --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/claude_code/apiflask",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 392,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "运行 pytest tests/ 收集 392 个测试，388 通过，3 失败，1 跳过。失败原因：1) test_auth_required_with_multiauth 和 test_apikey_auth_required_with_multiauth 因 MultiAuth 类缺少 additional_auth 属性导致 AttributeError（项目代码 bug）；2) test_spec_with_dict_headers 因 marshmallow Number 是抽象类导致 TypeError（项目代码问题）。这些是项目固有限制，非 Setup 责任。环境配置正确：pytest 正常运行，项目已安装，依赖完整。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

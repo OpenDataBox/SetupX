@@ -1,0 +1,36 @@
+{
+  "tool": "open_code",
+  "repository": "tmuxp",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/tmux-python/tmuxp",
+  "started_at": "2026-04-10T07:34:23",
+  "duration_sec": 118.56,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/tmuxp/run.log",
+  "command": ".venv/bin/python experiment/opencode/launch_opencode.py --repo-url https://github.com/tmux-python/tmuxp --repository tmuxp --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/tmuxp",
+  "verify_attempted": true,
+  "verify_success": false,
+  "verify_result": {
+    "success": false,
+    "test_framework": "pytest",
+    "collect_count": 689,
+    "command": "",
+    "exit_code": 1,
+    "stdout": "1 个测试失败 (tests/cli/test_help_examples.py::test_search_no_args_shows_help)。失败原因：FileNotFoundError: 'tmuxp' 命令不在 PATH 中。虚拟环境 /workspace/.venv/bin/ 包含 tmuxp 可执行文件，但未配置到 PATH 中，导致 subprocess 调用失败。这是 Setup 遗留的路径配置问题。测试框架：pytest，收集测试数：689。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

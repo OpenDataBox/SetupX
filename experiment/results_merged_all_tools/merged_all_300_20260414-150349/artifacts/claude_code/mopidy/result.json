@@ -1,0 +1,41 @@
+{
+  "tool": "claude_code",
+  "repository": "mopidy",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/mopidy/mopidy",
+  "started_at": "2026-04-06T18:35:10",
+  "duration_sec": 508.54,
+  "success": false,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/claude_code/mopidy/run.log",
+  "command": ".venv/bin/python experiment/claude_code/launch_claude_code.py --repo-url https://github.com/mopidy/mopidy --repository mopidy --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/claude_code/mopidy",
+  "verify_attempted": true,
+  "verify_success": false,
+  "verify_result": {
+    "success": false,
+    "test_framework": "pytest",
+    "collect_count": 1154,
+    "command": "",
+    "exit_code": 1,
+    "stdout": "运行 pytest 收集 1154 个测试，执行后 113 失败。失败根因：GStreamer API 变更导致兼容性错误 - Gst.URIType.SRC 在当前安装的 GStreamer 版本中不存在（被移除）。这是 pygobject/GStreamer 版本与项目代码不兼容的问题，属于 Setup Agent 应处理的包版本兼容性问题。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": false,
+  "phase2_verdict": "guilty",
+  "phase2_reason": "指控1 成立：验证确认运行 pytest 有 113 个测试失败，失败根因是 GStreamer API 变更（如 Gst.TAG_ARTIST、URIType.SRC 等属性不存在），这是 pygobject/GStreamer 版本与代码不兼容的问题，属于 Setup Agent 应处理的包版本兼容性问题。",
+  "prosecution": {
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未正确处理 pygobject/GStreamer 版本兼容性问题，导致核心功能无法运行（来源：pyproject.toml [project.dependencies] 声明 pygobject >= 3.50）",
+        "evidence": "命令: /workspace/.venv/bin/python -m pytest tests/ --ignore=tests/_app -q\n输出: 113 failed, 995 passed in 3.81s\n\n失败根因示例:\n1. AttributeError: type object 'Gst' has no attribute 'TAG_ARTIST'\n2. AttributeError: type object 'URIType' has no attribute 'SRC'\n3. AttributeError: 'Registry' object has no attribute 'find_feature'\n4. AttributeError: type object 'GLib' has no attribute 'Error'\n\nGStreamer 版本 1.26.2 与代码期望的 API 不兼容，导致音频相关测试全部失败。"
+      }
+    ]
+  },
+  "phase2_error": ""
+}

@@ -1,0 +1,41 @@
+{
+  "tool": "claude_code",
+  "repository": "yapf",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/google/yapf",
+  "started_at": "2026-04-09T10:47:45",
+  "duration_sec": 128.08,
+  "success": false,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/claude_code/yapf/run.log",
+  "command": ".venv/bin/python experiment/claude_code/launch_claude_code.py --repo-url https://github.com/google/yapf --repository yapf --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/claude_code/yapf",
+  "verify_attempted": true,
+  "verify_success": false,
+  "verify_result": {
+    "success": false,
+    "test_framework": "unittest",
+    "collect_count": 21,
+    "command": "",
+    "exit_code": 1,
+    "stdout": "运行命令：python3 -m unittest discover -p '*_test.py' yapftests/。结果：21 个测试全部失败，错误均为 ModuleNotFoundError: No module named 'yapf_third_party'。根因：项目未正确安装（缺少 editable install），导致 yapf_third_party 模块无法导入。Setup Agent 应执行 pip install -e . 或类似操作来安装项目。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": false,
+  "phase2_verdict": "guilty",
+  "phase2_reason": "指控 1 成立：验证确认在不设置 PYTHONPATH 的标准环境下，`import yapf` 失败（ModuleNotFoundError: No module named 'yapf_third_party'），且 `pip show yapf` 显示包未找到。Setup Agent 未执行标准的 pip install -e . 安装项目，而是使用 PYTHONPATH 技巧绕过，导致项目在标准环境下不可用。",
+  "prosecution": {
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未正确安装项目（yapf），导致 yapf_third_party 模块在标准环境下不可用",
+        "evidence": "命令: cd /workspace && python3 -c \"import yapf\"\n输出: ModuleNotFoundError: No module named 'yapf_third_party'\n\n命令: python3 -m pip show yapf\n输出: WARNING: Package(s) not found: yapf\n\nSetup Agent 使用 PYTHONPATH=/workspace:/workspace/third_party 技巧绕过安装，但项目本身未通过 pip 安装。venv 存在但 site-packages 为空，未用于安装项目。"
+      }
+    ]
+  },
+  "phase2_error": ""
+}

@@ -1,0 +1,36 @@
+{
+  "tool": "qwen_code",
+  "repository": "smart_open",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/piskvorky/smart_open",
+  "started_at": "2026-04-07T06:37:38",
+  "duration_sec": 202.26,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/qwen_code/smart_open/run.log",
+  "command": ".venv/bin/python experiment/qwen_code/launch_qwen_code.py --repo-url https://github.com/piskvorky/smart_open --repository smart_open --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/qwen_code/smart_open",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 431,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "运行 /workspace/.venv/bin/python -m pytest tests/，结果：427 passed, 4 skipped。跳过的测试是因为可选依赖缺失和需要外部 Moto 服务器，属于项目固有限制。无 ImportError 或配置错误，环境合格。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

@@ -1,0 +1,36 @@
+{
+  "tool": "claude_code",
+  "repository": "featuretools",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/alteryx/featuretools",
+  "started_at": "2026-04-06T20:51:33",
+  "duration_sec": 663.56,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/claude_code/featuretools/run.log",
+  "command": ".venv/bin/python experiment/claude_code/launch_claude_code.py --repo-url https://github.com/alteryx/featuretools --repository featuretools --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/claude_code/featuretools",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 1811,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "环境基本合格。运行 pytest 收集 1811 个测试，核心测试 1494 passed。失败测试主要因为：1) dask 可选依赖版本兼容性（7 个测试，AttributeError: 'NoneType' object has no attribute 'status'）；2) graphviz 系统依赖缺失（12 个测试，FileNotFoundError: dot）；3) S3 序列化 Python 版本检查限制（10 个测试，RuntimeError）；4) 少数测试逻辑 bug（entry_point_tests 断言错误、savgol_filter ValueError）。核心功能（config_tests、demo_tests、primitive_tests、feature_discovery、entityset_tests 大部分）均通过，基本环境可用。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

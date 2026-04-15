@@ -1,0 +1,36 @@
+{
+  "tool": "open_code",
+  "repository": "lark",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/lark-parser/lark",
+  "started_at": "2026-04-10T03:39:23",
+  "duration_sec": 99.98,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/lark/run.log",
+  "command": ".venv/bin/python experiment/opencode/launch_opencode.py --repo-url https://github.com/lark-parser/lark --repository lark --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/lark",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "unittest",
+    "collect_count": 1257,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "运行命令：python3 -m tests。结果：Ran 1257 tests in 6.358s, OK (skipped=126)。lark 1.3.1 已正确安装（editable install from /workspace）。跳过的 126 个测试是因为 js2py 与 Python 3.11 字节码不兼容（RuntimeError: Your python version made changes to the bytecode），这是项目固有限制，不是 Setup 问题。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

@@ -1,0 +1,8 @@
+{
+  "tool": "open_code",
+  "repository": "python-holidays",
+  "from_rerun": false,
+  "source_repo_dir": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/python-holidays",
+  "source_log_path": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/python-holidays/run.log",
+  "source_result_path": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/python-holidays/result.json"
+}

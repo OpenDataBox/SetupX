@@ -1,0 +1,8 @@
+{
+  "tool": "claude_code",
+  "repository": "acme",
+  "from_rerun": false,
+  "source_repo_dir": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/claude_code/acme",
+  "source_log_path": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/claude_code/acme/run.log",
+  "source_result_path": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/claude_code/acme/result.json"
+}

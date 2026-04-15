@@ -1,0 +1,8 @@
+{
+  "tool": "open_code",
+  "repository": "cookiecutter",
+  "from_rerun": false,
+  "source_repo_dir": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/cookiecutter",
+  "source_log_path": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/cookiecutter/run.log",
+  "source_result_path": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/cookiecutter/result.json"
+}

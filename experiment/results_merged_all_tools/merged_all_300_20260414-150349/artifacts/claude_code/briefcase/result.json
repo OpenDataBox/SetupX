@@ -1,0 +1,36 @@
+{
+  "tool": "claude_code",
+  "repository": "briefcase",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/beeware/briefcase",
+  "started_at": "2026-04-07T04:28:42",
+  "duration_sec": 220.33,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/claude_code/briefcase/run.log",
+  "command": ".venv/bin/python experiment/claude_code/launch_claude_code.py --repo-url https://github.com/beeware/briefcase --repository briefcase --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/claude_code/briefcase",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 3798,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "环境验证通过：1) 项目根目录在 /workspace，使用 .venv 虚拟环境；2) briefcase 包已正确安装 (0.4.2.dev40+gaf0cb7384)；3) pytest 9.0.2 正常收集 3798 个测试用例；4) 运行多个测试模块（test_cmdline.py 68 passed, config 383 passed, commands/base 146 passed, integrations 1162 passed, platforms 998 passed）全部通过；5) 无 ImportError、ModuleNotFoundError 或配置错误。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

@@ -1,0 +1,8 @@
+{
+  "tool": "qwen_code",
+  "repository": "neurogym",
+  "from_rerun": false,
+  "source_repo_dir": "experiment/results_benchmark100_51_100_claude_qwen/20260407-093446-521662/qwen_code/neurogym",
+  "source_log_path": "experiment/results_benchmark100_51_100_claude_qwen/20260407-093446-521662/qwen_code/neurogym/run.log",
+  "source_result_path": "experiment/results_benchmark100_51_100_claude_qwen/20260407-093446-521662/qwen_code/neurogym/result.json"
+}

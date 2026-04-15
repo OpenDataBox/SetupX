@@ -1,0 +1,36 @@
+{
+  "tool": "qwen_code",
+  "repository": "pytest-xdist",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/pytest-dev/pytest-xdist",
+  "started_at": "2026-04-09T10:27:56",
+  "duration_sec": 215.42,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/qwen_code/pytest-xdist/run.log",
+  "command": ".venv/bin/python experiment/qwen_code/launch_qwen_code.py --repo-url https://github.com/pytest-dev/pytest-xdist --repository pytest-xdist --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/qwen_code/pytest-xdist",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 220,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "运行命令：/workspace/.venv/bin/python -m pytest testing/ -v --tb=short。结果：204 passed, 6 skipped, 10 xfailed in 42.31s。项目已正确安装（可导入 xdist），pytest 环境正常，所有测试通过。跳过的测试和预期失败（xfailed）是项目固有限制，非 Setup 问题。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

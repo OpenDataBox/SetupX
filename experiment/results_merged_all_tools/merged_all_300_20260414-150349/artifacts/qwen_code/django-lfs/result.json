@@ -1,0 +1,41 @@
+{
+  "tool": "qwen_code",
+  "repository": "django-lfs",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/diefenbach/django-lfs",
+  "started_at": "2026-04-09T05:51:52",
+  "duration_sec": 584.99,
+  "success": false,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/qwen_code/django-lfs/run.log",
+  "command": ".venv/bin/python experiment/qwen_code/launch_qwen_code.py --repo-url https://github.com/diefenbach/django-lfs --repository django-lfs --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/qwen_code/django-lfs",
+  "verify_attempted": true,
+  "verify_success": false,
+  "verify_result": {
+    "success": false,
+    "test_framework": "unknown",
+    "collect_count": 0,
+    "command": "",
+    "exit_code": -1,
+    "stdout": "",
+    "stderr": "verifier 达到最大步数 50"
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": false,
+  "phase2_verdict": "guilty",
+  "phase2_reason": "指控 1 成立：验证确认 lfs/customer/forms.py 第 9 行使用 from captcha.fields import CaptchaField，且虚拟环境中执行导入命令返回 ModuleNotFoundError: No module named 'captcha'。这是 Setup Agent 应安装但未安装的核心依赖，导致 228 个测试因导入错误而 ERROR。",
+  "prosecution": {
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 captcha（django-simple-captcha），导致 lfs/customer/forms.py 无法导入，228 个测试因 ModuleNotFoundError 而 ERROR",
+        "evidence": "依赖声明证据：/workspace/lfs/customer/forms.py 第 9 行硬编码使用 `from captcha.fields import CaptchaField`\n\n取证命令 1: /workspace/venv/bin/python -c \"from captcha.fields import CaptchaField\"\n输出 1: ModuleNotFoundError: No module named 'captcha'\n\n取证命令 2: /workspace/venv/bin/pip show django-simple-captcha\n输出 2: WARNING: Package(s) not found: django-simple-captcha\n\n取证命令 3: cd /workspace && PYTHONPATH=/workspace:$PYTHONPATH DJANGO_SETTINGS_MODULE=project.settings.testing /workspace/venv/bin/pytest /workspace/lfs/ --ignore=/workspace/lfs/integrationtests --ignore=/workspace/lfs/manage/tests_e2e --tb=line -q\n输出 3: 109 failed, 1718 passed, 2 skipped, 72 warnings, 228 errors in 10.17s\n错误详情：/workspace/lfs/customer/forms.py:9: ModuleNotFoundError: No module named 'captcha'"
+      }
+    ]
+  },
+  "phase2_error": ""
+}

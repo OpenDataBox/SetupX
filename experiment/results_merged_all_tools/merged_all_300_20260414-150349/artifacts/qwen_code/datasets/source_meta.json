@@ -1,0 +1,8 @@
+{
+  "tool": "qwen_code",
+  "repository": "datasets",
+  "from_rerun": false,
+  "source_repo_dir": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/qwen_code/datasets",
+  "source_log_path": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/qwen_code/datasets/run.log",
+  "source_result_path": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/qwen_code/datasets/result.json"
+}

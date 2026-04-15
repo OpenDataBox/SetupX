@@ -1,0 +1,36 @@
+{
+  "tool": "open_code",
+  "repository": "yapf",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/google/yapf",
+  "started_at": "2026-04-14T04:47:00",
+  "duration_sec": 86.61,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_rerun_opencode_failed30/20260413-221502-810629/open_code/yapf/run.log",
+  "command": ".venv/bin/python experiment/opencode/launch_opencode.py --repo-url https://github.com/google/yapf --repository yapf --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_rerun_opencode_failed30/20260413-221502-810629/open_code/yapf",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "unittest",
+    "collect_count": 611,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "使用虚拟环境 /workspace/.venv/bin/python 运行 unittest 测试，命令：python -m unittest discover -p '*_test.py' yapftests/。结果：Ran 611 tests in 5.577s，OK。yapf 模块可正常导入，所有测试通过，环境配置合格。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

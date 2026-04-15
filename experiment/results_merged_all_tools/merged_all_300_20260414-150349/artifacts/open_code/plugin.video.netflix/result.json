@@ -1,0 +1,36 @@
+{
+  "tool": "open_code",
+  "repository": "plugin.video.netflix",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/castagnait/plugin.video.netflix",
+  "started_at": "2026-04-10T09:15:47",
+  "duration_sec": 397.65,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/plugin.video.netflix/run.log",
+  "command": ".venv/bin/python experiment/opencode/launch_opencode.py --repo-url https://github.com/castagnait/plugin.video.netflix --repository plugin.video.netflix --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/plugin.video.netflix",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "tox",
+    "collect_count": 0,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "验证通过：1) 项目根目录在 /workspace；2) 使用 tox 测试框架（py310-py313 无测试命令，flake8 通过）；3) 所有依赖已安装（requests, polib, xmlschema, mysql-connector-python, pycryptodomex）；4) 项目模块可正常导入（需 PYTHONPATH=/workspace:/workspace/tests）；5) smoke test 全部通过。项目本身无标准单元测试文件，这是项目设计而非 setup 问题。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

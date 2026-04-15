@@ -1,0 +1,36 @@
+{
+  "tool": "qwen_code",
+  "repository": "armi",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/terrapower/armi",
+  "started_at": "2026-04-09T07:03:26",
+  "duration_sec": 779.68,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/qwen_code/armi/run.log",
+  "command": ".venv/bin/python experiment/qwen_code/launch_qwen_code.py --repo-url https://github.com/terrapower/armi --repository armi --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/qwen_code/armi",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 2710,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "环境配置合格。虚拟环境 /workspace/venv 可用，armi 包已正确安装（editable install），pytest 配置正常。运行验证：armi/reactor/tests/ 649 测试通过，armi/materials/tests/ + armi/bookkeeping/tests/ 540 测试通过，armi/utils/tests/ 324 测试通过。--collect-only 显示的 40 个收集错误是 pytest 并行收集时插件未初始化的问题，实际运行测试时 conftest.py 会正确调用 armi.configure() 初始化，不影响实际测试执行。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

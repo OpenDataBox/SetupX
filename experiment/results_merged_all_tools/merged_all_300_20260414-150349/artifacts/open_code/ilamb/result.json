@@ -1,0 +1,36 @@
+{
+  "tool": "open_code",
+  "repository": "ilamb",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/rubisco-sfa/ILAMB",
+  "started_at": "2026-04-10T21:06:48",
+  "duration_sec": 821.85,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/ilamb/run.log",
+  "command": ".venv/bin/python experiment/opencode/launch_opencode.py --repo-url https://github.com/rubisco-sfa/ILAMB --repository ilamb --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/ilamb",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 2,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "项目结构侦察完成：根目录在 /workspace，使用 setup.py 安装。环境验证：ILAMB 2.7.3 已正确安装为 editable 模式，所有依赖包（numpy, pandas, matplotlib, cartopy, netCDF4, cf-units, sympy, mpi4py, scipy, cftime, tqdm, pyarrow, pyyaml, requests）均可用。测试运行：使用 pytest 运行 test/test_run_script.py，2 个测试全部通过。test_Variable.py 因使用 Python 2 print 语句语法导致 SyntaxError，这是项目源代码的固有限制（非 Setup 责任）。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

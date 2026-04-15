@@ -1,0 +1,36 @@
+{
+  "tool": "claude_code",
+  "repository": "lifelines",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/camdavidsonpilon/lifelines",
+  "started_at": "2026-04-07T10:04:04",
+  "duration_sec": 1143.63,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_51_100_claude_qwen/20260407-093446-521662/claude_code/lifelines/run.log",
+  "command": ".venv/bin/python experiment/claude_code/launch_claude_code.py --repo-url https://github.com/camdavidsonpilon/lifelines --repository lifelines --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_51_100_claude_qwen/20260407-093446-521662/claude_code/lifelines",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 625,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "项目根目录在 /workspace，使用 pytest 框架。共收集 625 个测试。已验证多个测试模块：test_generate_datasets.py (1 passed, 2 skipped), test_npmle.py (8 passed, 1 xfailed), test_statistics.py (42 passed), test_estimation.py 多个类 (74+ passed), lifelines/tests/utils/ (96 passed)。所有测试均通过，无 ImportError 或 ModuleNotFoundError，项目已正确安装（存在 lifelines.egg-info），环境配置合格。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

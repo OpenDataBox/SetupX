@@ -1,0 +1,36 @@
+{
+  "tool": "open_code",
+  "repository": "recipe-scrapers",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/hhursev/recipe-scrapers",
+  "started_at": "2026-04-10T23:38:09",
+  "duration_sec": 243.72,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/recipe-scrapers/run.log",
+  "command": ".venv/bin/python experiment/opencode/launch_opencode.py --repo-url https://github.com/hhursev/recipe-scrapers --repository recipe-scrapers --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/recipe-scrapers",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "unittest",
+    "collect_count": 42,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "运行命令：python3 -m unittest discover -s tests -v。结果：Ran 42 tests in 0.101s，OK。项目根目录在 /workspace（非 /workspace/repo），recipe_scrapers 已正确安装为 editable 包，所有依赖（beautifulsoup4, requests, extruct 等）均已安装，42 个单元测试全部通过。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

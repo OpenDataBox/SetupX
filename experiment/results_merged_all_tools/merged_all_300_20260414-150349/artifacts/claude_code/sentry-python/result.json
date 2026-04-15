@@ -1,0 +1,36 @@
+{
+  "tool": "claude_code",
+  "repository": "sentry-python",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/getsentry/sentry-python",
+  "started_at": "2026-04-07T06:20:00",
+  "duration_sec": 588.98,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/claude_code/sentry-python/run.log",
+  "command": ".venv/bin/python experiment/claude_code/launch_claude_code.py --repo-url https://github.com/getsentry/sentry-python --repository sentry-python --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/claude_code/sentry-python",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 2248,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "环境验证通过。使用 /workspace/.tox/py3.11-common/bin/pytest 运行测试：核心测试 tests/test_api.py (17 passed), tests/test_basics.py (114 passed), tests/test_client.py (237 passed), tests/test_scope.py, tests/test_transport.py (390 passed), tests/test_utils.py (223 passed), tests/tracing/ (282 passed), tests/test_ai_monitoring.py (122 passed), tests/profiler/ (93 passed), tests/test_metrics.py/tests/test_logs.py (45 passed) 等均通过。共收集 2248 个测试，部分集成测试因缺少可选依赖（redis、pyramid、gevent、starlette 等）被跳过，这是项目固有限制。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

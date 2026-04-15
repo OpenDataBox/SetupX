@@ -1,0 +1,8 @@
+{
+  "tool": "claude_code",
+  "repository": "pip",
+  "from_rerun": false,
+  "source_repo_dir": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/claude_code/pip",
+  "source_log_path": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/claude_code/pip/run.log",
+  "source_result_path": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/claude_code/pip/result.json"
+}

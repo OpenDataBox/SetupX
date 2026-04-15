@@ -1,0 +1,36 @@
+{
+  "tool": "open_code",
+  "repository": "proselint",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/amperser/proselint",
+  "started_at": "2026-04-10T07:15:17",
+  "duration_sec": 111.37,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/proselint/run.log",
+  "command": ".venv/bin/python experiment/opencode/launch_opencode.py --repo-url https://github.com/amperser/proselint --repository proselint --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/proselint",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 337,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "使用 /workspace/.venv/bin/python 运行 pytest，337 个测试全部通过。项目依赖（google-re2、google-re2-stubs）已正确安装，虚拟环境配置完整。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

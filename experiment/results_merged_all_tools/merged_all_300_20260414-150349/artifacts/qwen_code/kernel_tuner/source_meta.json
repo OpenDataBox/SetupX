@@ -1,0 +1,8 @@
+{
+  "tool": "qwen_code",
+  "repository": "kernel_tuner",
+  "from_rerun": false,
+  "source_repo_dir": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/qwen_code/kernel_tuner",
+  "source_log_path": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/qwen_code/kernel_tuner/run.log",
+  "source_result_path": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/qwen_code/kernel_tuner/result.json"
+}

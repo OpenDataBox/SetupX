@@ -1,0 +1,36 @@
+{
+  "tool": "open_code",
+  "repository": "xknx",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/xknx/xknx",
+  "started_at": "2026-04-10T23:14:27",
+  "duration_sec": 751.32,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/xknx/run.log",
+  "command": ".venv/bin/python experiment/opencode/launch_opencode.py --repo-url https://github.com/xknx/xknx --repository xknx --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/xknx",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 2876,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "运行 /workspace/.venv/bin/python -m pytest 共收集2876个测试，2874通过，2失败。失败原因：1) test_routing_indication_multicast - 集成测试网络超时（外部依赖限制）；2) test_lifecycle - 单元测试断言失败（测试逻辑问题）。无缺包、配置或安装问题，环境配置合格。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

@@ -1,0 +1,36 @@
+{
+  "tool": "open_code",
+  "repository": "androidviewclient",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/dtmilano/androidviewclient",
+  "started_at": "2026-04-14T01:47:17",
+  "duration_sec": 235.35,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_rerun_opencode_failed30/20260413-221502-810629/open_code/androidviewclient/run.log",
+  "command": ".venv/bin/python experiment/opencode/launch_opencode.py --repo-url https://github.com/dtmilano/androidviewclient --repository androidviewclient --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_rerun_opencode_failed30/20260413-221502-810629/open_code/androidviewclient",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 42,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "运行 pytest 验证：非 connected 测试 19 passed, 2 skipped；21 个 connected 测试因缺少 SERIALNO 环境变量（需要真实 Android 设备）而 ERROR，属于项目固有限制。环境配置合格。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

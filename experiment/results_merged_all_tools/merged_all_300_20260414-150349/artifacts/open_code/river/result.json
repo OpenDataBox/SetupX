@@ -1,0 +1,36 @@
+{
+  "tool": "open_code",
+  "repository": "river",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/online-ml/river",
+  "started_at": "2026-04-10T04:13:11",
+  "duration_sec": 321.74,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/river/run.log",
+  "command": ".venv/bin/python experiment/opencode/launch_opencode.py --repo-url https://github.com/online-ml/river --repository river --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/river",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 3795,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "环境验证通过。运行 pytest 测试：test_estimators.py (2583 passed), 以及 anomaly/drift/neighbors/linear_model/preprocessing/tree/forest/optim/time_series/model_selection/stream/datasets 等模块测试均通过。2 个失败测试（bandit 模块）是因为需要下载外部数据集（网络依赖），属于项目固有限制而非 Setup 问题。river 包 v0.23.0 已正确安装，Python 3.13.3 环境正常。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

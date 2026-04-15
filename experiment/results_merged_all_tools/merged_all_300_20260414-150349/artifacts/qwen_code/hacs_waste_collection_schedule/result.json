@@ -1,0 +1,36 @@
+{
+  "tool": "qwen_code",
+  "repository": "hacs_waste_collection_schedule",
+  "revision": "HEAD",
+  "repo_url": "https://github.com/mampfes/hacs_waste_collection_schedule",
+  "started_at": "2026-04-07T07:32:16",
+  "duration_sec": 260.23,
+  "success": true,
+  "timeout": false,
+  "return_code": 0,
+  "judge_mode": "return_code",
+  "log_path": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/qwen_code/hacs_waste_collection_schedule/run.log",
+  "command": ".venv/bin/python experiment/qwen_code/launch_qwen_code.py --repo-url https://github.com/mampfes/hacs_waste_collection_schedule --repository hacs_waste_collection_schedule --revision HEAD --task-file experiment/prompts/repo_setup_task.txt",
+  "repo_dir": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/qwen_code/hacs_waste_collection_schedule",
+  "verify_attempted": true,
+  "verify_success": true,
+  "verify_result": {
+    "success": true,
+    "test_framework": "pytest",
+    "collect_count": 53,
+    "command": "",
+    "exit_code": 0,
+    "stdout": "运行命令：python3 -m pytest tests/ -v。结果：所有测试通过（第一次 6 个，第二次明确指定文件后 47 个）。环境配置合格：Python 3.11.2、pytest 9.0.2、所有依赖包已正确安装，无 ImportError 或配置问题。",
+    "stderr": ""
+  },
+  "verify_error": "",
+  "phase2_attempted": true,
+  "phase2_success": true,
+  "phase2_verdict": "not_guilty",
+  "phase2_reason": "检察官未发现实质问题",
+  "prosecution": {
+    "prosecute": false,
+    "charges": []
+  },
+  "phase2_error": ""
+}

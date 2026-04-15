@@ -1,0 +1,8 @@
+{
+  "tool": "qwen_code",
+  "repository": "cclib",
+  "from_rerun": false,
+  "source_repo_dir": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/qwen_code/cclib",
+  "source_log_path": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/qwen_code/cclib/run.log",
+  "source_result_path": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/qwen_code/cclib/result.json"
+}
