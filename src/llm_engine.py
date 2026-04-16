@@ -236,9 +236,10 @@ Execute any shell command directly in the container.
 ### TRY_XPU_SUGGESTION
 Apply a proven fix from the XPU knowledge base inside a snapshot sandbox.
 - **Use for**: applying an "Executable XPU Fix" that is relevant to the current error.
-  Commands are automatically adapted by LLM to the current environment before execution,
-  not mechanically applied. The container is snapshotted before execution and auto-rolled
-  back on failure, making it safer than SHELL_COMMAND.
+  YOU must adapt the XPU advice to the current environment and write the concrete shell
+  commands yourself in the "command" field (semicolon-separated, like SHELL_COMMAND).
+  The container is snapshotted before execution and auto-rolled back on failure,
+  making it safer than SHELL_COMMAND.
 - **Do NOT use** if "Executable XPU Fixes" is absent from the XPU section (means commands are empty).
 
 ### SET_ENV
@@ -272,8 +273,9 @@ Signal that the task is complete. **ONLY call after a successful VERIFY.**
 
 1. Analyze the Last Error carefully before choosing an action.
 2. If "Executable XPU Fixes" lists a fix relevant to the current error, **prefer
-   TRY_XPU_SUGGESTION** — commands are auto-adapted to your environment and
-   snapshot-protected with auto-rollback on failure.
+   TRY_XPU_SUGGESTION** — read the XPU advice, adapt it to your current environment,
+   and write the concrete command yourself. The command is snapshot-protected with
+   auto-rollback on failure.
 3. Use SHELL_COMMAND when no relevant XPU fix is available, or when you need to run
    diagnostic/exploratory commands (e.g., ls, cat, pip list).
 4. Default to SHELL_COMMAND when in doubt.
@@ -293,6 +295,7 @@ You MUST respond in JSON format with this schema:
 
     // 如果是 TRY_XPU_SUGGESTION:
     "xpu_suggestion_id": "suggestion_123",
+    "command": "pip install numpy==1.23.5",
     "reasoning": "XPU 建议降级 numpy 版本，这与报错信息高度吻合"
 
     // 如果是 SET_ENV:
@@ -600,6 +603,7 @@ You MUST respond in JSON format with this schema:
                 action_type=ActionType.TRY_XPU_SUGGESTION,
                 thought=thought,
                 xpu_suggestion_id=content.get("xpu_suggestion_id"),  # XPU 建议 ID
+                command=content.get("command"),  # 主 agent 适配后的命令
                 reasoning=content.get("reasoning"),  # 选择该建议的理由
             )
         elif action_type_str == "FINISH":
