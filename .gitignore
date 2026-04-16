@@ -83,3 +83,4 @@ data/trajectories_remaining/
 data/xpu_extracted_remaining/
 *.pdf
 xpu_export.jsonl
+paper/

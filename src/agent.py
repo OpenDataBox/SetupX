@@ -288,10 +288,11 @@ class SpeculativeSetupAgent:
 
         推测执行流程：
         A. 存档（Checkpoint）：docker commit 创建快照
-        B. 试错（Trial）：逐条执行建议中的命令
-        C. 验证与归因（Verification & Attribution）：评估执行效果
-        D. 提交反馈（Feedback Loop）：向 XPU 知识库提交 telemetry
-        E. 决策分支（Decision Branch）：成功保留 / 失败回滚
+        B. 适配（Adapt）：LLM 根据 advice_nl + 当前上下文生成适配命令
+        C. 试错（Trial）：逐条执行适配后的命令
+        D. 验证与归因（Verification & Attribution）：评估执行效果
+        E. 提交反馈（Feedback Loop）：向 XPU 知识库提交 telemetry
+        F. 决策分支（Decision Branch）：成功保留 / 失败回滚
 
         Args:
             action: LLM 输出的动作对象，action.xpu_suggestion_id 为建议 ID
@@ -329,25 +330,34 @@ class SpeculativeSetupAgent:
         self._env.create_checkpoint(ckpt_tag)
         logger.info(f"创建快照 {ckpt_tag}，开始推测执行 XPU 建议")
 
-        # --- B. 试错（Trial）---
-        # 如果建议的命令列表为空，跳过执行
-        if not suggestion.commands:
-            logger.warning(f"XPU 建议 {suggestion.id} 的 commands 为空，跳过执行")
+        # --- B. 命令来源：主 agent 直接输出 ---
+        # 主 agent 已拥有完整上下文（近 10 步历史、pip list 结果等），
+        # 由主 agent 在 thought 中分析 XPU 建议并直接输出适配后的命令。
+        # 回退：若主 agent 未输出 command，则使用 atoms 渲染的原始命令。
+        if action.command:
+            commands = [action.command]
+            logger.info(f"主 agent 输出适配命令: {commands}")
+        elif suggestion.commands:
+            commands = suggestion.commands
+            logger.info(f"主 agent 未输出命令，回退到 atoms 渲染的 {len(commands)} 条命令")
+        else:
+            logger.warning(f"XPU 建议 {suggestion.id} 无可执行命令，跳过")
             self._state.record_tried_suggestion(suggestion.id)
             self._state.add_to_history({
                 "action": action.to_dict(),
                 "result": {
                     "exit_code": 1,
-                    "stdout": f"[XPU SKIP] {suggestion.id}：commands 为空，未执行",
+                    "stdout": f"[XPU SKIP] {suggestion.id}：无命令，未执行",
                     "stderr": "",
                 },
             })
             return
 
-        # 逐条执行建议中的命令，任一命令失败即中断
+        # --- C. 试错（Trial）---
+        # 逐条执行适配后的命令，任一命令失败即中断
         success = True
         logs: list[CommandResult] = []
-        for cmd in suggestion.commands:
+        for cmd in commands:
             result = self._env.exec_run(cmd)
             logs.append(result)
             if not result.success:

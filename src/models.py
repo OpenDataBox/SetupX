@@ -127,6 +127,7 @@ class AgentAction:
             result["content"]["command"] = self.command
         elif self.action_type == ActionType.TRY_XPU_SUGGESTION:
             result["content"]["xpu_suggestion_id"] = self.xpu_suggestion_id
+            result["content"]["command"] = self.command
             result["content"]["reasoning"] = self.reasoning
         elif self.action_type == ActionType.SET_ENV:
             result["content"]["env_key"] = self.env_key
