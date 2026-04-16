@@ -60,7 +60,13 @@ output/
 # Experiment artifacts
 experiment/results/
 experiment/results_small/
+experiment/results_merged_all_tools/
 exp_small.log
+
+# Packaged artifacts (Backups, Bundles)
+*_backup_*.tar.gz
+standalone_*_bundle/
+standalone_*_bundle.tar.gz
 
 data/step1_remaining/
 data/trajectories_remaining/
