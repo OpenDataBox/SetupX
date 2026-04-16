@@ -235,10 +235,10 @@ Execute any shell command directly in the container.
 
 ### TRY_XPU_SUGGESTION
 Apply a proven fix from the XPU knowledge base inside a snapshot sandbox.
-- **Use for**: applying an "Executable XPU Fix" whose commands are a precise match for the
-  current error. The container is snapshotted before execution and auto-rolled back on failure.
-- **Do NOT use** if the listed commands only partially match, or if you want to adapt the commands —
-  in that case, write a SHELL_COMMAND yourself (referencing the XPU Reference Knowledge).
+- **Use for**: applying an "Executable XPU Fix" that is relevant to the current error.
+  Commands are automatically adapted by LLM to the current environment before execution,
+  not mechanically applied. The container is snapshotted before execution and auto-rolled
+  back on failure, making it safer than SHELL_COMMAND.
 - **Do NOT use** if "Executable XPU Fixes" is absent from the XPU section (means commands are empty).
 
 ### SET_ENV
@@ -271,10 +271,11 @@ Signal that the task is complete. **ONLY call after a successful VERIFY.**
 ## Decision Instructions
 
 1. Analyze the Last Error carefully before choosing an action.
-2. Review "XPU Reference Knowledge" for diagnosis hints. You MAY use this knowledge
-   to write a better SHELL_COMMAND — no need to pick TRY_XPU_SUGGESTION for this.
-3. If "Executable XPU Fixes" lists a fix that directly matches the error, you MAY use
-   TRY_XPU_SUGGESTION with its ID (snapshot-protected, auto-rollback on failure).
+2. If "Executable XPU Fixes" lists a fix relevant to the current error, **prefer
+   TRY_XPU_SUGGESTION** — commands are auto-adapted to your environment and
+   snapshot-protected with auto-rollback on failure.
+3. Use SHELL_COMMAND when no relevant XPU fix is available, or when you need to run
+   diagnostic/exploratory commands (e.g., ls, cat, pip list).
 4. Default to SHELL_COMMAND when in doubt.
 5. Only call VERIFY when you are confident the environment is ready. Until then, diagnose
    with SHELL_COMMAND.

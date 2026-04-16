@@ -288,10 +288,11 @@ class SpeculativeSetupAgent:
 
         推测执行流程：
         A. 存档（Checkpoint）：docker commit 创建快照
-        B. 试错（Trial）：逐条执行建议中的命令
-        C. 验证与归因（Verification & Attribution）：评估执行效果
-        D. 提交反馈（Feedback Loop）：向 XPU 知识库提交 telemetry
-        E. 决策分支（Decision Branch）：成功保留 / 失败回滚
+        B. 适配（Adapt）：LLM 根据 advice_nl + 当前上下文生成适配命令
+        C. 试错（Trial）：逐条执行适配后的命令
+        D. 验证与归因（Verification & Attribution）：评估执行效果
+        E. 提交反馈（Feedback Loop）：向 XPU 知识库提交 telemetry
+        F. 决策分支（Decision Branch）：成功保留 / 失败回滚
 
         Args:
             action: LLM 输出的动作对象，action.xpu_suggestion_id 为建议 ID
@@ -329,25 +330,56 @@ class SpeculativeSetupAgent:
         self._env.create_checkpoint(ckpt_tag)
         logger.info(f"创建快照 {ckpt_tag}，开始推测执行 XPU 建议")
 
-        # --- B. 试错（Trial）---
-        # 如果建议的命令列表为空，跳过执行
-        if not suggestion.commands:
-            logger.warning(f"XPU 建议 {suggestion.id} 的 commands 为空，跳过执行")
+        # --- B. 适配（Adapt）---
+        # XPU 建议只提供通用修复思路（advice_nl），具体命令需要 LLM
+        # 结合当前仓库的上下文（错误信息、OS、工作目录等）适配生成。
+        # 从 suggestion.description 中提取 advice_nl 文本
+        advice_lines = []
+        for line in suggestion.description.split("\n"):
+            # description 格式为 "[经验] advice_text\n[匹配理由] reason"
+            if line.startswith("[匹配理由]"):
+                continue
+            cleaned = line.replace("[经验] ", "").strip()
+            if cleaned:
+                advice_lines.append(cleaned)
+
+        # 获取当前环境上下文
+        cwd = self._env.exec_run("pwd").stdout.strip()
+        os_info = self._env.exec_run("cat /etc/os-release | head -2").stdout.strip()
+
+        # 调用 LLM 适配器：advice_nl + 当前上下文 → 适配后的命令
+        adapted_commands = self._llm.adapt_xpu_commands(
+            advice_nl=advice_lines,
+            last_error=error_before,
+            cwd=cwd,
+            os_info=os_info,
+        )
+
+        # 适配失败时回退到 atoms 渲染的原始命令
+        if adapted_commands:
+            commands = adapted_commands
+            logger.info(f"LLM 适配生成 {len(commands)} 条命令: {commands}")
+        elif suggestion.commands:
+            commands = suggestion.commands
+            logger.info(f"LLM 适配失败，回退到 atoms 渲染的 {len(commands)} 条命令")
+        else:
+            logger.warning(f"XPU 建议 {suggestion.id} 无可执行命令（适配失败且 atoms 为空），跳过")
             self._state.record_tried_suggestion(suggestion.id)
             self._state.add_to_history({
                 "action": action.to_dict(),
                 "result": {
                     "exit_code": 1,
-                    "stdout": f"[XPU SKIP] {suggestion.id}：commands 为空，未执行",
+                    "stdout": f"[XPU SKIP] {suggestion.id}：适配失败且 commands 为空，未执行",
                     "stderr": "",
                 },
             })
             return
 
-        # 逐条执行建议中的命令，任一命令失败即中断
+        # --- C. 试错（Trial）---
+        # 逐条执行适配后的命令，任一命令失败即中断
         success = True
         logs: list[CommandResult] = []
-        for cmd in suggestion.commands:
+        for cmd in commands:
             result = self._env.exec_run(cmd)
             logs.append(result)
             if not result.success:
