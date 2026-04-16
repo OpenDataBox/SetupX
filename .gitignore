@@ -61,6 +61,14 @@ output/
 experiment/results/
 experiment/results_small/
 experiment/results_merged_all_tools/
+experiment/*
+!experiment/claude_code/
+!experiment/qwen_code/
+!experiment/opencode/
+!experiment/configs/
+!experiment/prompts/
+!experiment/*.py
+!experiment/*.md
 exp_small.log
 
 # Packaged artifacts (Backups, Bundles)
@@ -68,6 +76,8 @@ exp_small.log
 standalone_*_bundle/
 standalone_*_bundle.tar.gz
 
+# Data rerun files
+data/rerun*
 data/step1_remaining/
 data/trajectories_remaining/
 data/xpu_extracted_remaining/

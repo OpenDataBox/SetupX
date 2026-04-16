@@ -45,7 +45,7 @@ def parse_args() -> argparse.Namespace:
         help="任务提示词模板路径",
     )
     parser.add_argument("--limit", type=int, default=10, help="最多评测多少个仓库")
-    parser.add_argument("--timeout", type=int, default=1800, help="单次运行超时秒数")
+    parser.add_argument("--timeout", type=int, default=3600, help="单次运行超时秒数")
     parser.add_argument(
         "--output-root",
         default="experiment/results",

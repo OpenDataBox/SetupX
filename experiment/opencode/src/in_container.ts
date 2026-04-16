@@ -123,8 +123,8 @@ function getPollIntervalMs(): number {
 
 function getTimeoutMs(): number {
   const raw = process.env.OPENCODE_SESSION_TIMEOUT_MS?.trim();
-  const parsed = raw ? Number.parseInt(raw, 10) : 15 * 60 * 1000;
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 15 * 60 * 1000;
+  const parsed = raw ? Number.parseInt(raw, 10) : 60 * 60 * 1000;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 60 * 60 * 1000;
 }
 
 function getServerPort(): number {

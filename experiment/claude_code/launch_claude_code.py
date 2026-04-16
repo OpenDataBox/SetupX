@@ -59,12 +59,12 @@ def to_bool(value: str | None, default: bool = False) -> bool:
 def get_exec_timeout_sec() -> int:
     raw = os.getenv("CLAUDE_CODE_EXEC_TIMEOUT_SEC", "").strip()
     if not raw:
-        return 1800
+        return 3600
     try:
         value = int(raw)
     except ValueError:
-        return 1800
-    return value if value > 0 else 1800
+        return 3600
+    return value if value > 0 else 3600
 
 
 def build_runner_fingerprint() -> str:
