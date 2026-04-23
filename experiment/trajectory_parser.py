@@ -290,3 +290,118 @@ def parse_claude_setup_history(tool_name: str, output_text: str) -> list[dict[st
             step += 1
 
     return entries
+
+
+def _collect_qwen_blocks(blocks: list[dict[str, Any]]) -> tuple[str, str, list[dict[str, Any]], list[dict[str, Any]]]:
+    reasoning_blocks: list[str] = []
+    text_blocks: list[str] = []
+    tool_uses: list[dict[str, Any]] = []
+    tool_results: list[dict[str, Any]] = []
+
+    for block in blocks:
+        block_type = str(block.get("type", ""))
+        if block_type == "thinking":
+            text = str(block.get("thinking", "")).strip()
+            if text:
+                reasoning_blocks.append(text)
+        elif block_type == "text":
+            text = str(block.get("text", "")).strip()
+            if text:
+                text_blocks.append(text)
+        elif block_type == "tool_use":
+            tool_uses.append({
+                "tool": block.get("name"),
+                "call_id": block.get("id"),
+                "input": block.get("input"),
+            })
+        elif block_type == "tool_result":
+            tool_results.append({
+                "call_id": block.get("tool_use_id"),
+                "content": str(block.get("content", "")).strip()[:2000],
+                "is_error": bool(block.get("is_error", False)),
+            })
+
+    return "\n\n".join(reasoning_blocks), "\n\n".join(text_blocks), tool_uses, tool_results
+
+
+def parse_qwen_setup_history(tool_name: str, output_text: str) -> list[dict[str, Any]]:
+    """解析 Qwen Code query() 流式 JSON 日志。"""
+    entries: list[dict[str, Any]] = []
+    step = 1
+
+    for event in _iter_json_lines(output_text):
+        event_type = str(event.get("type", ""))
+
+        if event_type in {"assistant", "user"}:
+            message = event.get("message")
+            if not isinstance(message, dict):
+                continue
+            content = message.get("content") or []
+            if not isinstance(content, list):
+                continue
+
+            thought, text_content, tool_uses, tool_results = _collect_qwen_blocks(
+                [block for block in content if isinstance(block, dict)]
+            )
+            if not (thought or text_content or tool_uses or tool_results):
+                continue
+
+            if event_type == "assistant":
+                action_type = "EXTERNAL_TOOL_CALL" if tool_uses else "EXTERNAL_TOOL_MESSAGE"
+                stdout_parts: list[str] = []
+                if text_content:
+                    stdout_parts.append(text_content)
+                if tool_uses:
+                    stdout_parts.append(json.dumps(tool_uses, ensure_ascii=False))
+                entries.append(_build_entry(
+                    step=step,
+                    action_type=action_type,
+                    thought=thought or text_content or "Qwen Code assistant 事件",
+                    content={
+                        "tool": tool_name,
+                        "session_id": event.get("session_id"),
+                        "message_id": message.get("id"),
+                        "tool_uses": tool_uses,
+                    },
+                    stdout="\n\n".join(stdout_parts),
+                ))
+                step += 1
+            else:
+                stdout_parts = [json.dumps(tool_results, ensure_ascii=False)] if tool_results else []
+                if text_content:
+                    stdout_parts.append(text_content)
+                entries.append(_build_entry(
+                    step=step,
+                    action_type="EXTERNAL_TOOL_RESULT",
+                    thought="Qwen Code 工具执行结果",
+                    content={
+                        "tool": tool_name,
+                        "session_id": event.get("session_id"),
+                        "message_id": message.get("id"),
+                        "tool_results": tool_results,
+                    },
+                    stdout="\n\n".join(stdout_parts),
+                ))
+                step += 1
+
+        elif event_type == "result":
+            result_text = str(event.get("result", "")).strip()
+            subtype = str(event.get("subtype", "")).strip()
+            if not result_text and not subtype:
+                continue
+            entries.append(_build_entry(
+                step=step,
+                action_type="EXTERNAL_TOOL_FINISH",
+                thought="Qwen Code 最终结果",
+                content={
+                    "tool": tool_name,
+                    "session_id": event.get("session_id"),
+                    "subtype": subtype,
+                    "duration_ms": event.get("duration_ms"),
+                    "num_turns": event.get("num_turns"),
+                },
+                stdout=result_text or subtype,
+            ))
+            step += 1
+
+    return entries
