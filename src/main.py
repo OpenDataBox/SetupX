@@ -8,6 +8,7 @@
 import json
 import os
 import shutil
+import signal
 import sys
 import tempfile
 import time
@@ -181,22 +182,50 @@ def _build_traj_from_history(history: list[dict]) -> list[dict]:
 
 def main() -> int:
     """主入口函数"""
-    if len(sys.argv) < 2:
-        print("用法: python -m src.main <git_repo_url> [max_iterations]", file=sys.stderr)
-        print("示例: python -m src.main https://github.com/user/repo", file=sys.stderr)
-        return 1
+    import argparse
+    parser = argparse.ArgumentParser(description="三阶段流程编排")
+    parser.add_argument("repo_url", help="Git 仓库 URL")
+    parser.add_argument("--max-steps", type=int, default=50, help="最大迭代步数")
+    parser.add_argument("--phase1-timeout", type=int, default=1800, help="Phase 1 超时秒数")
+    parser.add_argument("--no-xpu", action="store_true", help="禁用 XPU 知识库")
+    args = parser.parse_args()
 
-    repo_url = sys.argv[1]
-    max_iterations = int(sys.argv[2]) if len(sys.argv) > 2 else 50
+    if args.no_xpu:
+        for key in ("dns", "XPU_DB_DNS", "XPU_VECTOR_ENABLED", "XPU_ENABLED"):
+            os.environ.pop(key, None)
+        import src.config as _cfg
+        _cfg._config = None
+
+    repo_url = args.repo_url
+    max_iterations = args.max_steps
+    phase1_timeout = args.phase1_timeout
 
     logger.info("启动三阶段流程")
     logger.info(f"目标仓库: {repo_url}")
     logger.info(f"最大迭代次数: {max_iterations}")
+    logger.info(f"Phase 1 超时: {phase1_timeout}s")
 
     # ── 阶段1: Setup ──
     logger.info("=== 阶段1: Setup（Agent 推理）===")
     agent = SpeculativeSetupAgent(repo_url, max_iterations)
-    setup_result = agent.run()
+
+    def _phase1_timeout_handler(signum, frame):
+        raise TimeoutError(f"Phase 1 超时（>{phase1_timeout}s），强制终止")
+
+    signal.signal(signal.SIGALRM, _phase1_timeout_handler)
+    signal.alarm(phase1_timeout)
+    try:
+        setup_result = agent.run()
+    except TimeoutError as e:
+        signal.alarm(0)
+        logger.error(f"Phase 1 超时: {e}")
+        try:
+            agent.env.destroy()
+        except Exception:
+            pass
+        return 1
+    finally:
+        signal.alarm(0)
     logger.info(
         f"Setup 完成: completed={setup_result.completed}, "
         f"steps={setup_result.steps_taken}, container={setup_result.container_id[:12]}"
