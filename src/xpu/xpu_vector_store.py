@@ -555,6 +555,8 @@ class XpuVectorStore:
         使用 PostgreSQL 的 jsonb_set + COALESCE 实现原子递增，
         避免并发更新时的竞态条件。
 
+        当环境变量 FREEZE_TELEMETRY=1 时跳过更新，用于跑实验时保护已有 telemetry 数据。
+
         Args:
             xpu_ids: 要更新的 XPU ID 列表
             field: 遥测字段名，只能是 'hits'、'successes'、'failures'
@@ -562,6 +564,9 @@ class XpuVectorStore:
         Raises:
             ValueError: 字段名不在白名单中
         """
+        if os.environ.get("FREEZE_TELEMETRY") == "1":
+            logger.debug(f"FREEZE_TELEMETRY=1，跳过 telemetry 更新: {field}")
+            return
         if field not in self._TELEMETRY_FIELDS:
             raise ValueError(f"非法的 telemetry 字段: {field}，仅允许 {self._TELEMETRY_FIELDS}")
         if not xpu_ids: return  # ID 列表为空则跳过
@@ -613,10 +618,15 @@ class XpuVectorStore:
         与 increment_telemetry 不同，此方法支持浮点数增量，
         适用于加权归因场景。
 
+        当环境变量 FREEZE_TELEMETRY=1 时跳过更新。
+
         Args:
             updates: { "xpu_id_1": 0.5, "xpu_id_2": 0.25 }
             field: 遥测字段名
         """
+        if os.environ.get("FREEZE_TELEMETRY") == "1":
+            logger.debug(f"FREEZE_TELEMETRY=1，跳过 telemetry 批量更新: {field}")
+            return
         if field not in self._TELEMETRY_FIELDS:
             raise ValueError(f"非法的 telemetry 字段: {field}，仅允许 {self._TELEMETRY_FIELDS}")
         if not updates: return
