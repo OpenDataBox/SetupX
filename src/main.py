@@ -188,6 +188,7 @@ def main() -> int:
     parser.add_argument("--max-steps", type=int, default=50, help="最大迭代步数")
     parser.add_argument("--phase1-timeout", type=int, default=1800, help="Phase 1 超时秒数")
     parser.add_argument("--no-xpu", action="store_true", help="禁用 XPU 知识库")
+    parser.add_argument("--output-dir", type=str, default="log", help="结果 JSON 输出目录")
     args = parser.parse_args()
 
     if args.no_xpu:
@@ -231,8 +232,8 @@ def main() -> int:
         f"steps={setup_result.steps_taken}, container={setup_result.container_id[:12]}"
     )
 
-    log_dir = Path("log")
-    log_dir.mkdir(exist_ok=True)
+    log_dir = Path(args.output_dir)
+    log_dir.mkdir(parents=True, exist_ok=True)
     safe_name = repo_url.rstrip("/").split("/")[-1]
 
     # ── 阶段2: Phase 2 诉讼裁决 ──

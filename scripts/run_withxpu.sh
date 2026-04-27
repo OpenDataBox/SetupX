@@ -90,7 +90,7 @@ FREEZE_TELEMETRY=1 .venv/bin/python experiment/ours/run_benchmark_ours.py \
     --repo-list "$SLICE_FILE" \
     --output-dir "$OUTPUT_DIR" \
     --parallelism "$PARALLELISM" \
-    --phase1-timeout 1800
+    --phase1-timeout 3600
 
 echo ""
 echo "=================================================="
