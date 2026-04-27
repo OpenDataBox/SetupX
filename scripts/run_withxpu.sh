@@ -62,7 +62,7 @@ if [ "$START" -lt 1 ] || [ "$END" -gt "$TOTAL_LINES" ] || [ "$START" -gt "$END" 
 fi
 
 SLICE_FILE="data/_slice_${START}-${END}.jsonl"
-OUTPUT_DIR="experiment/results_withxpu_${START}-${END}"
+OUTPUT_DIR="output/withxpu"
 COUNT=$((END - START + 1))
 
 echo "=================================================="

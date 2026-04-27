@@ -114,12 +114,38 @@ def main() -> None:
     if args.limit:
         repos = repos[:args.limit]
 
-    run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
-    output_dir = Path(args.output_dir) / run_id
+    output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     results_path = output_dir / "raw_results.jsonl"
-    print(f"[benchmark] run_id={run_id}, 仓库数={len(repos)}, 并发={args.parallelism}, phase1_timeout={args.phase1_timeout}s")
+
+    # 跳过已有结果的仓库（支持断点续跑）
+    done_repos = set()
+    if results_path.exists():
+        for line in results_path.read_text().splitlines():
+            if line.strip():
+                try:
+                    done_repos.add(json.loads(line)["repository"])
+                except (json.JSONDecodeError, KeyError):
+                    pass
+
+    todo = []
+    for repo in repos:
+        repo_url = repo.get("repo_url")
+        if not repo_url and repo.get("repository"):
+            repo_url = f"https://github.com/{repo['repository']}"
+        repository = repo.get("repository", repo_url.rstrip("/").split("/")[-1])
+        if "/" in repository:
+            repository = repository.split("/")[-1]
+        if repository in done_repos:
+            continue
+        todo.append(repo)
+
+    if not todo:
+        print(f"[benchmark] 所有 {len(repos)} 个仓库已完成，无需重跑")
+        return
+
+    print(f"[benchmark] 仓库数={len(repos)}, 跳过={len(repos)-len(todo)}, 待跑={len(todo)}, 并发={args.parallelism}, phase1_timeout={args.phase1_timeout}s")
     print(f"[benchmark] 结果目录: {output_dir}")
 
     completed = 0
@@ -127,7 +153,7 @@ def main() -> None:
     with ThreadPoolExecutor(max_workers=args.parallelism) as pool:
         futures = {
             pool.submit(run_one, repo, output_dir, args.no_xpu, args.phase1_timeout): repo
-            for repo in repos
+            for repo in todo
         }
         for fut in as_completed(futures):
             result = fut.result()
@@ -137,17 +163,9 @@ def main() -> None:
             with open(results_path, "a") as f:
                 f.write(json.dumps(result, ensure_ascii=False) + "\n")
             status = "✓" if result["success"] else "✗"
-            print(f"[{completed}/{len(repos)}] {status} {result['repository']} ({result['duration_sec']:.0f}s)")
+            print(f"[{completed}/{len(todo)}] {status} {result['repository']} ({result['duration_sec']:.0f}s)")
 
-    summary = {
-        "run_id": run_id,
-        "total": len(repos),
-        "completed": completed,
-        "success": success_count,
-        "failed": completed - success_count,
-    }
-    (output_dir / "summary.json").write_text(json.dumps(summary, indent=2, ensure_ascii=False))
-    print(f"\n[benchmark] 完成: 成功={success_count}/{len(repos)}")
+    print(f"\n[benchmark] 完成: 成功={success_count}/{len(todo)}")
 
 
 if __name__ == "__main__":
