@@ -43,9 +43,9 @@ def run_one(repo: dict, output_dir: Path, no_xpu: bool, phase1_timeout: int) -> 
         repository = repository.split("/")[-1]
     started_at = time.time()
 
-    # result json 输出到实验结果目录下的 result_jsons/ 子目录
-    result_dir = output_dir / "result_jsons"
-    result_dir.mkdir(parents=True, exist_ok=True)
+    # 每个仓库独立子文件夹
+    repo_dir = output_dir / repository
+    repo_dir.mkdir(parents=True, exist_ok=True)
 
     cmd = [
         str(PROJECT_ROOT / ".venv/bin/python"),
@@ -53,14 +53,14 @@ def run_one(repo: dict, output_dir: Path, no_xpu: bool, phase1_timeout: int) -> 
         repo_url,
         "--max-steps", "50",
         "--phase1-timeout", str(phase1_timeout),
-        "--output-dir", str(result_dir),
+        "--output-dir", str(repo_dir),
     ]
     if no_xpu:
         cmd.append("--no-xpu")
 
     env = os.environ.copy()
 
-    log_path = output_dir / f"{repository}.log"
+    log_path = repo_dir / f"{repository}.log"
     try:
         with open(log_path, "w") as log_f:
             proc = subprocess.run(
@@ -81,8 +81,8 @@ def run_one(repo: dict, output_dir: Path, no_xpu: bool, phase1_timeout: int) -> 
 
     duration = time.time() - started_at
 
-    # 读 main.py 写入的 result json（现在输出到实验结果目录）
-    result_json_path = result_dir / f"{repository}_result.json"
+    # 读 main.py 写入的 result json
+    result_json_path = repo_dir / f"{repository}_result.json"
     phase2_verdict = None
     phase2_reason = None
     if result_json_path.exists():
@@ -103,7 +103,7 @@ def run_one(repo: dict, output_dir: Path, no_xpu: bool, phase1_timeout: int) -> 
         "success": success,
         "phase2_verdict": phase2_verdict,
         "phase2_reason": phase2_reason,
-        "log_path": str(log_path),
+        "log_path": str(repo_dir / f"{repository}.log"),
     }
 
 
