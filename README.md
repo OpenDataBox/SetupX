@@ -1,4 +1,5 @@
-![Uploading Generated Image May 05, 2026 - 11_25PM.jpg…]()
+<img width="1408" height="768" alt="Generated Image May 05, 2026 - 11_25PM" src="https://github.com/user-attachments/assets/c86f538e-5c4c-4578-883e-b37d3da9214f" />
+
 # SetupX
 
 **Experience-Driven Automated Environment Configuration with LLM Agents**
