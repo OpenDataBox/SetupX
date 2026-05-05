@@ -1,13 +1,14 @@
-# ExpertSetup
+![Uploading Generated Image May 05, 2026 - 11_25PM.jpg…]()
+# SetupX
 
 **Experience-Driven Automated Environment Configuration with LLM Agents**
 
 
 ## Overview
 
-**ExpertSetup** is an LLM-powered multi-agent system that automatically configures software repository build environments inside Docker containers. Given a GitHub repository URL, ExpertSetup spins up a container, iteratively installs dependencies, resolves errors, and configures the environment until the project's test suite can be executed successfully.
+**SetupX** is an LLM-powered multi-agent system that automatically configures software repository build environments inside Docker containers. Given a GitHub repository URL, SetupX spins up a container, iteratively installs dependencies, resolves errors, and configures the environment until the project's test suite can be executed successfully.
 
-Unlike prior approaches that start each configuration from scratch, ExpertSetup features three mutually reinforcing mechanisms:
+Unlike prior approaches that start each configuration from scratch, SetupX features three mutually reinforcing mechanisms:
 
 - 🧠 **XPU (eXPerience Unit) Knowledge System** — A vector database (PostgreSQL + pgvector) that stores transferable configuration experiences. Successful fixes are extracted, deduplicated, and reused across repositories via two-layer semantic retrieval.
 - 🔄 **Speculative Execution** — Docker container snapshots enable safe trial-and-rollback of past fixes, addressing the inherently irreversible nature of environment configuration.
@@ -15,7 +16,7 @@ Unlike prior approaches that start each configuration from scratch, ExpertSetup 
 
 ## Architecture
 
-ExpertSetup orchestrates repository configuration through three sequential phases:
+SetupX orchestrates repository configuration through three sequential phases:
 
 ```
 Phase 1: Setup with In-Loop Verification
@@ -46,7 +47,7 @@ Phase 3: Experience Extraction
 
 | Component | Description |
 |-----------|-------------|
-| **ExpertSetup** | Main orchestrator. Runs a ReAct loop with 6 action types: `SHELL_COMMAND`, `TRY_XPU_SUGGESTION`, `SET_ENV`, `ROLLBACK_ENV`, `VERIFY`, `FINISH`. |
+| **SetupX** | Main orchestrator. Runs a ReAct loop with 6 action types: `SHELL_COMMAND`, `TRY_XPU_SUGGESTION`, `SET_ENV`, `ROLLBACK_ENV`, `VERIFY`, `FINISH`. |
 | **RetrieverAgent** | Sub-agent for XPU knowledge retrieval. Layer 1: vector coarse filtering (pgvector cosine similarity, top-N). Layer 2: LLM re-ranking for precise matching. Also performs delayed audit of previously used XPUs. |
 | **VerifierAgent** | Read-only sub-agent that runs the project's test suite (`pytest`) and distinguishes setup-induced failures from inherent project issues. |
 | **ProsecutorAgent** | Adversarial investigator. Has container access for evidence gathering, files charges with concrete evidence. |
