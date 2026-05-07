@@ -11,9 +11,9 @@
 
 Unlike prior approaches that start each configuration from scratch, SetupX features three mutually reinforcing mechanisms:
 
-- 🧠 **XPU (eXPerience Unit) Knowledge System** — A vector database (PostgreSQL + pgvector) that stores transferable configuration experiences. Successful fixes are extracted, deduplicated, and reused across repositories via two-layer semantic retrieval.
-- 🔄 **Speculative Execution** — Docker container snapshots enable safe trial-and-rollback of past fixes, addressing the inherently irreversible nature of environment configuration.
-- ⚖️ **Adversarial Verification** — A Prosecutor–Judge pipeline structurally separates configuration and verification roles, preventing self-confirmation bias.
+-  **XPU (eXPerience Unit) Knowledge System** — A vector database (PostgreSQL + pgvector) that stores transferable configuration experiences. Successful fixes are extracted, deduplicated, and reused across repositories via two-layer semantic retrieval.
+-  **Speculative Execution** — Docker container snapshots enable safe trial-and-rollback of past fixes, addressing the inherently irreversible nature of environment configuration.
+-  **Adversarial Verification** — A Prosecutor–Judge pipeline structurally separates configuration and verification roles, preventing self-confirmation bias.
 
 ## Architecture
 
@@ -144,9 +144,6 @@ setUpAgentOurs/
 │       ├── extract_xpu_from_trajs_mvp.py  # Trajectory → XPU extraction
 │       └── online_xpu_extractor.py        # Online extraction pipeline
 ├── data/
-│   ├── python329.jsonl         # Full benchmark (329 repositories)
-│   ├── benchmark100.jsonl      # Benchmark subset (100 repositories)
-│   └── benchmark229.jsonl      # Benchmark subset (229 repositories)
 ├── experiment/                 # Experiment results & comparative analysis
 ├── scripts/                    # Utility scripts
 ├── paper/                      # LaTeX source for the paper
