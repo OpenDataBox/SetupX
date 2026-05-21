@@ -1,8 +1,0 @@
-{
-  "tool": "open_code",
-  "repository": "langgraph",
-  "from_rerun": false,
-  "source_repo_dir": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/langgraph",
-  "source_log_path": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/langgraph/run.log",
-  "source_result_path": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/langgraph/result.json"
-}

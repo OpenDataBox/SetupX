@@ -1,8 +1,0 @@
-{
-  "tool": "claude_code",
-  "repository": "improv",
-  "from_rerun": false,
-  "source_repo_dir": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/claude_code/improv",
-  "source_log_path": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/claude_code/improv/run.log",
-  "source_result_path": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/claude_code/improv/result.json"
-}

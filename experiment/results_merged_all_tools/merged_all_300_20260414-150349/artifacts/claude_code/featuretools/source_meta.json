@@ -1,8 +1,0 @@
-{
-  "tool": "claude_code",
-  "repository": "featuretools",
-  "from_rerun": false,
-  "source_repo_dir": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/claude_code/featuretools",
-  "source_log_path": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/claude_code/featuretools/run.log",
-  "source_result_path": "experiment/results_benchmark100_first20_claude_qwen/20260406-170005-379912/claude_code/featuretools/result.json"
-}

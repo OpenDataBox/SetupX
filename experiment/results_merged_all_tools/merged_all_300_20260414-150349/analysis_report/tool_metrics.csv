@@ -1,4 +1,0 @@
-tool,total,success,failed,success_rate_pct,timeout,avg_sec,median_sec,p90_sec,token_sum,token_avg,token_median,token_p90,token_coverage_pct
-claude_code,100,83,17,83.00,1,544.38,359.27,1143.63,2185575,21855.75,21797.5,22739,99.0
-open_code,100,82,18,82.00,0,499.88,407.44,910.85,4134992,41349.92,39781.5,60089,100.0
-qwen_code,100,87,13,87.00,0,493.28,337.49,1009.69,5730540,57305.4,45540.0,89261,100.0

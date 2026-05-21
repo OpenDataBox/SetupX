@@ -1,8 +1,0 @@
-{
-  "tool": "qwen_code",
-  "repository": "pytest-xdist",
-  "from_rerun": false,
-  "source_repo_dir": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/qwen_code/pytest-xdist",
-  "source_log_path": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/qwen_code/pytest-xdist/run.log",
-  "source_result_path": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/qwen_code/pytest-xdist/result.json"
-}

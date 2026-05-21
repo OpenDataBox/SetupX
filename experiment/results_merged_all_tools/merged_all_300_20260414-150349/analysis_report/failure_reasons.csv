@@ -1,9 +1,0 @@
-tool,reason,count
-claude_code,"phase2_guilty",15
-claude_code,"timeout",1
-claude_code,"container_id_parse_failure",1
-open_code,"container_id_parse_failure",16
-open_code,"phase2_guilty",2
-qwen_code,"phase2_guilty",10
-qwen_code,"io_timeout",2
-qwen_code,"_ssl.c:1015: The handshake operation timed out",1

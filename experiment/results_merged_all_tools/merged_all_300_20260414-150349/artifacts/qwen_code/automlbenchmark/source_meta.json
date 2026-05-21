@@ -1,8 +1,0 @@
-{
-  "tool": "qwen_code",
-  "repository": "automlbenchmark",
-  "from_rerun": false,
-  "source_repo_dir": "experiment/results_benchmark100_51_100_claude_qwen/20260407-093446-521662/qwen_code/automlbenchmark",
-  "source_log_path": "experiment/results_benchmark100_51_100_claude_qwen/20260407-093446-521662/qwen_code/automlbenchmark/run.log",
-  "source_result_path": "experiment/results_benchmark100_51_100_claude_qwen/20260407-093446-521662/qwen_code/automlbenchmark/result.json"
-}

@@ -1,8 +1,0 @@
-{
-  "tool": "claude_code",
-  "repository": "cheroot",
-  "from_rerun": true,
-  "source_repo_dir": "experiment/results_rerun_claude_timeout/20260413-221519-636797/claude_code/cheroot",
-  "source_log_path": "experiment/results_rerun_claude_timeout/20260413-221519-636797/claude_code/cheroot/run.log",
-  "source_result_path": "experiment/results_rerun_claude_timeout/20260413-221519-636797/claude_code/cheroot/result.json"
-}

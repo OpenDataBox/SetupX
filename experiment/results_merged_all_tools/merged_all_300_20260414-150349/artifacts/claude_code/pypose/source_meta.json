@@ -1,8 +1,0 @@
-{
-  "tool": "claude_code",
-  "repository": "pypose",
-  "from_rerun": false,
-  "source_repo_dir": "experiment/results_benchmark100_51_100_claude_qwen/20260407-093446-521662/claude_code/pypose",
-  "source_log_path": "experiment/results_benchmark100_51_100_claude_qwen/20260407-093446-521662/claude_code/pypose/run.log",
-  "source_result_path": "experiment/results_benchmark100_51_100_claude_qwen/20260407-093446-521662/claude_code/pypose/result.json"
-}

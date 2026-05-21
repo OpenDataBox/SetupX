@@ -1,8 +1,0 @@
-{
-  "tool": "open_code",
-  "repository": "keyring",
-  "from_rerun": false,
-  "source_repo_dir": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/keyring",
-  "source_log_path": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/keyring/run.log",
-  "source_result_path": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/keyring/result.json"
-}

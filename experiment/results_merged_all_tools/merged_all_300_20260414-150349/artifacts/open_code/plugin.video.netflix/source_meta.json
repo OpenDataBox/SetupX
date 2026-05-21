@@ -1,8 +1,0 @@
-{
-  "tool": "open_code",
-  "repository": "plugin.video.netflix",
-  "from_rerun": false,
-  "source_repo_dir": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/plugin.video.netflix",
-  "source_log_path": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/plugin.video.netflix/run.log",
-  "source_result_path": "experiment/results_benchmark100_open_code/20260410-004552-102621/open_code/plugin.video.netflix/result.json"
-}

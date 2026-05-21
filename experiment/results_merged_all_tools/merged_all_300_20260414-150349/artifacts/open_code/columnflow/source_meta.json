@@ -1,8 +1,0 @@
-{
-  "tool": "open_code",
-  "repository": "columnflow",
-  "from_rerun": true,
-  "source_repo_dir": "experiment/results_rerun_opencode_failed30/20260413-221502-810629/open_code/columnflow",
-  "source_log_path": "experiment/results_rerun_opencode_failed30/20260413-221502-810629/open_code/columnflow/run.log",
-  "source_result_path": "experiment/results_rerun_opencode_failed30/20260413-221502-810629/open_code/columnflow/result.json"
-}

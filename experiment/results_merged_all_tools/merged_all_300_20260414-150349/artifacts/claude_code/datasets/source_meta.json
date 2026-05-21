@@ -1,8 +1,0 @@
-{
-  "tool": "claude_code",
-  "repository": "datasets",
-  "from_rerun": true,
-  "source_repo_dir": "experiment/results_rerun_claude_timeout/20260413-221519-636797/claude_code/datasets",
-  "source_log_path": "experiment/results_rerun_claude_timeout/20260413-221519-636797/claude_code/datasets/run.log",
-  "source_result_path": "experiment/results_rerun_claude_timeout/20260413-221519-636797/claude_code/datasets/result.json"
-}

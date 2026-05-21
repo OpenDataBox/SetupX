@@ -1,8 +1,0 @@
-{
-  "tool": "qwen_code",
-  "repository": "briefcase",
-  "from_rerun": false,
-  "source_repo_dir": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/qwen_code/briefcase",
-  "source_log_path": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/qwen_code/briefcase/run.log",
-  "source_result_path": "experiment/results_benchmark100_21_50_claude_qwen/20260407-005903-945681/qwen_code/briefcase/result.json"
-}

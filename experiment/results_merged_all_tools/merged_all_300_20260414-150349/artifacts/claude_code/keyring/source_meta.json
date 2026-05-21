@@ -1,8 +1,0 @@
-{
-  "tool": "claude_code",
-  "repository": "keyring",
-  "from_rerun": false,
-  "source_repo_dir": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/claude_code/keyring",
-  "source_log_path": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/claude_code/keyring/run.log",
-  "source_result_path": "experiment/results_benchmark100_60_100_claude_qwen/20260409-002416-053374/claude_code/keyring/result.json"
-}
