@@ -27,3 +27,9 @@ output/
 Thumbs.db
 .idea/
 .vscode/
+
+# experiment local config + outputs
+experiment/configs/tools.json
+experiment/results/
+experiment/*/node_modules/
+experiment/*/dist/

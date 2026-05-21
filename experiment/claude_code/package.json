@@ -1,0 +1,13 @@
+{
+  "name": "claude-code-benchmark-runner",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "benchmark-internal": "tsx src/in_container.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  }
+}

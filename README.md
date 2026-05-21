@@ -249,18 +249,36 @@ All synthesised rows carry id prefixes `noise_ctx_*`, `noise_graft_*`,
 │   ├── export_xpu.py         # dump experiences to JSONL
 │   ├── reset_db.py           # drop the XPU table
 │   └── inflate_xpu_db.py     # (optional) synthesise noise entries for stress testing
-└── src/
-    ├── main.py                # CLI entry point; orchestrates the 3 phases
-    ├── agent.py               # Phase 1 main loop (speculative exec + rollback)
-    ├── llm_engine.py          # LLM call + JSON action parsing
-    ├── retriever_agent.py     # Two-tier experience retrieval (vector + LLM rerank)
-    ├── environment_manager.py # Docker container lifecycle + snapshots
-    ├── verifier_agent.py      # Phase 1 verify gate
-    ├── prosecutor_agent.py    # Phase 2 prosecutor
-    ├── judge_agent.py         # Phase 2 judge
-    ├── task_meta.py           # Multi-repo family meta rendering
-    ├── models.py / config.py / logger.py / xpu_client.py
-    └── xpu/                   # Experience-store extraction & vector index
+├── src/
+│   ├── main.py                # CLI entry point; orchestrates the 3 phases
+│   ├── agent.py               # Phase 1 main loop (speculative exec + rollback)
+│   ├── llm_engine.py          # LLM call + JSON action parsing
+│   ├── retriever_agent.py     # Two-tier experience retrieval (vector + LLM rerank)
+│   ├── environment_manager.py # Docker container lifecycle + snapshots
+│   ├── verifier_agent.py      # Phase 1 verify gate
+│   ├── prosecutor_agent.py    # Phase 2 prosecutor
+│   ├── judge_agent.py         # Phase 2 judge
+│   ├── task_meta.py           # Multi-repo family meta rendering
+│   ├── models.py / config.py / logger.py / xpu_client.py
+│   └── xpu/                   # Experience-store extraction & vector index
+├── experiment/                # Cross-system comparison harness
+│   ├── run_cli_benchmark.py      # Batch driver; dispatches per-tool launchers,
+│   │                             #   then takes over the container and runs the
+│   │                             #   project's VerifierAgent + Phase 2 judge.
+│   ├── {claude_code,opencode,qwen_code}/
+│   │                             # Per-CLI Docker wrappers (Dockerfile + Python
+│   │                             #   launcher + TS in-container runner).
+│   ├── ours/run_benchmark_ours.py   # Wrapper that batches our own agent.
+│   ├── configs/tools.example.json   # Copy to tools.json and edit before running.
+│   ├── prompts/repo_setup_task.txt  # Unified task prompt shared by all systems.
+│   ├── phase2_pipeline.py / summarize_results.py / trajectory_parser.py
+│   └── README.md / CLI_TOOLS_ARCHITECTURE.md  # Harness docs.
+└── eval/                      # Re-adjudication of public baselines
+    ├── eval_envbench.py / eval_envbench_33.py    # envBench outputs
+    ├── eval_execagent.py / eval_execagent_full.py # ExecAgent outputs
+    ├── eval_r2r.py                                # Repo2Run outputs
+    ├── offline_xpu_extract.py                     # Offline XPU mining
+    └── results/                                   # Adjudicated JSON + reports
 ```
 
 ---

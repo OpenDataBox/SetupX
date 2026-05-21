@@ -1,0 +1,326 @@
+# CLI 仓库配置实验流程
+
+这个目录用于评估不同 CLI Agent 在“仓库配置”任务上的成功率，当前默认覆盖：
+
+- `claude_code`
+- `open_code`
+- `qwen_code`
+
+目标不是比较单次样例，而是用统一仓库清单、统一任务描述、统一验证口径，统计不同工具在仓库配置任务上的通过率。
+
+## 目录结构
+
+- `configs/tools.example.json`：工具配置样例
+- `configs/repos_example.jsonl`：仓库清单样例
+- `prompts/repo_setup_task.txt`：统一任务提示词
+- `claude_code/`：Claude Code 无头模式包装器
+- `opencode/`：OpenCode TypeScript SDK 包装器
+- `qwen_code/`：Qwen Code TypeScript SDK 包装器
+- `results/`：实验输出目录
+- `run_cli_benchmark.py`：批量运行实验
+- `summarize_results.py`：汇总成功率
+
+## 实验流程
+
+完整流程分成 4 步：
+
+1. 读取仓库清单  
+   默认从 `data/python329.jsonl` 或自定义 JSONL 中读取仓库，字段至少包含 `repository`，可选 `revision`。
+
+2. 调用外部 CLI 工具执行仓库配置任务  
+   `run_cli_benchmark.py` 会读取 `tools.json`。默认按“同一个仓库下多个工具并发”方式执行，也就是单个仓库会同时启动 `claude_code`、`open_code`、`qwen_code`。模板变量由脚本统一替换，包括仓库名、仓库 URL、任务提示词路径和任务全文。
+
+3. 复用当前仓库已有的 Docker、verify 和诉讼裁决 phase2 流程做统一验证  
+   这是这套实验的关键：
+   - 如果外部 CLI 最终产出一个容器，并在输出中打印 `container_id=<容器ID>`，实验脚本会调用 `EnvironmentManager.from_container()` 接管这个容器。
+   - 如果外部 CLI 最终产出一个 Dockerfile 目录，并打印 `dockerfile_dir=<目录路径>`，实验脚本会调用 `EnvironmentManager.from_dockerfile()` 构建并启动容器。
+   - 接管成功后，先统一调用 `VerifierAgent.verify()` 在容器内做黑箱验证，再复用与主流程一致的检察官/法官 phase2 裁决。
+
+4. 记录原始结果并汇总成功率  
+   每次运行会在 `results/<run_id>/` 下生成一套独立结果，并按 `run_id / tool / repo` 隔离落盘。脚本默认不覆盖历史实验。每个单仓库结果完成后会立刻刷新 `raw_results.jsonl`、tool 级 `summary.json` 和 run 级 `summary.json`，这样即使中途异常退出，也能保留已完成部分。
+
+## Docker 与 Verify 复用约定
+
+如果要走统一验证链路，外部 CLI 需要满足下面至少一种输出协议：
+
+- 容器模式：stdout 或 stderr 中包含 `container_id=<容器 ID>`
+- Dockerfile 模式：stdout 或 stderr 中包含 `dockerfile_dir=<Dockerfile 目录>`
+
+对应配置项如下：
+
+- `output_mode`：`container` 或 `dockerfile`
+- `verify_enabled`：是否启用统一验证
+- `container_id_pattern`：从输出中提取容器 ID 的正则
+- `dockerfile_dir_pattern`：从输出中提取 Dockerfile 目录的正则
+- `container_work_dir` / `dockerfile_work_dir`：验证时进入的项目目录
+- `phase2_enabled`：是否在 verify 后继续跑诉讼裁决 phase2，默认开启
+
+如果工具没有产出可接管的容器或 Dockerfile，脚本仍可运行，但只能按 `judge_mode` 用退出码或输出关键字做粗粒度判定，不能复用当前仓库的 verify/phase2 流程。
+
+## 配置方式
+
+先复制配置样例：
+
+```bash
+cp experiment/configs/tools.example.json experiment/configs/tools.json
+```
+
+默认样例已经按仓库根目录下的 `.venv/bin/python` 调用各个 launcher。
+如果你使用的虚拟环境目录不同，请同步修改 `command_template`。
+
+然后填写每个工具的真实命令模板。示例字段：
+
+```json
+{
+  "name": "claude_code",
+  "enabled": true,
+  "command_template": "your-cli --repo {repo_url} --task-file {task_prompt_path}",
+  "output_mode": "container",
+  "verify_enabled": true,
+  "container_id_pattern": "container_id=([a-f0-9]{12,64})",
+  "container_work_dir": "/workspace"
+}
+```
+
+模板支持以下变量：
+
+- `{repository}`
+- `{repo_url}`
+- `{revision}`
+- `{task_prompt_path}`
+- `{task_prompt}`
+- `{repo_dir}`
+
+## Qwen Code 接入
+
+`qwen_code` 目前按官方 TypeScript SDK 方式接入，代码在 `experiment/qwen_code/`。调用时固定使用：
+
+- Node.js `>= 20.0.0`
+- sandbox 容器内可访问的 Qwen Code CLI
+- `permissionMode: "yolo"`
+- `authType: "openai"`
+- 根目录 `.env` 中的 `QWEN_CODE_API_KEY`
+- 根目录 `.env` 中的 `QWEN_CODE_BASE_URL`
+- 可选 `QWEN_CODE_MODEL`，默认 `qwen3-coder-plus`
+- Qwen Code 只在独立 Docker sandbox 容器中运行
+- 成功后直接输出 `container_id=<id>` 给统一 verifier 接管
+
+先准备 runner 镜像依赖：
+
+```bash
+cd experiment/qwen_code
+npm install
+```
+
+根目录 `.env` 至少需要：
+
+```bash
+QWEN_CODE_API_KEY=your_api_key
+QWEN_CODE_BASE_URL=https://your-openai-compatible-endpoint/v1
+QWEN_CODE_MODEL=qwen3-coder-plus
+QWEN_CODE_BASE_IMAGE=qwen-code-benchmark:latest
+QWEN_CODE_CLI_NPM_SPEC=@qwen-code/qwen-code@latest
+# 如果 qwen 不是 PATH 可直接找到，可显式指定完整路径
+QWEN_CODE_CLI_PATH=/full/path/to/qwen
+```
+
+包装器会为每个仓库：
+
+1. 先构建并缓存一份 `qwen_code` 基础镜像
+2. 每个仓库实验都从这份基础镜像启动一个新的独立 Docker 容器
+3. 只在该容器内 clone 仓库、运行 Qwen Code、执行依赖安装和验证
+4. 成功后输出 `container_id=<id>`，交给现有 `EnvironmentManager.from_container()` 和 `VerifierAgent.verify()` 复用
+5. 失败时自动删除该 sandbox 容器，避免污染宿主机
+
+也就是说，镜像级别是按工具复用的，容器级别是按 `tool + repo + run` 隔离的。
+
+官方 SDK 文档要求：
+
+- Node.js `>= 20.0.0`
+- Qwen Code `>= 0.4.0`（稳定版）已安装并在 PATH 中可访问
+- 如果你使用 `nvm`，应显式设置 `pathToQwenExecutable` 为 `qwen` 二进制完整路径
+
+## Claude Code 接入
+
+`claude_code` 目前按你指定的 DMXAPI 方式接入，代码在 `experiment/claude_code/`。调用时固定使用：
+
+- Node.js `>= 20.0.0`
+- 基础镜像内通过 `npm install -g @anthropic-ai/claude-code` 安装 Claude Code
+- Docker 容器内运行仓库配置
+- `claude -p` 无头模式
+- 默认使用 `--output-format json`，减少长流式日志导致的收尾不稳定
+- `--dangerously-skip-permissions` 跳过权限确认，避免实验卡在交互提示
+- 根目录 `.env` 中的 `ANTHROPIC_AUTH_TOKEN`
+- 根目录 `.env` 中的 `ANTHROPIC_BASE_URL`
+- 可选 `CLAUDE_CODE_MODEL` 或 `ANTHROPIC_MODEL`
+- 如果未单独提供 Claude 配置，默认回退复用 `OPENCODE_API_KEY`、`OPENCODE_BASE_URL`、`OPENCODE_MODEL`
+- 成功后直接输出 `container_id=<id>` 给统一 verifier 接管
+
+先准备 runner 镜像依赖：
+
+```bash
+cd experiment/claude_code
+npm install
+```
+
+根目录 `.env` 至少需要：
+
+```bash
+ANTHROPIC_AUTH_TOKEN=your_api_key
+ANTHROPIC_BASE_URL=https://your-anthropic-compatible-endpoint
+CLAUDE_CODE_MODEL=qwen3-coder-plus
+CLAUDE_CODE_BASE_IMAGE=claude-code-benchmark:latest
+CLAUDE_CODE_CLI_NPM_SPEC=@anthropic-ai/claude-code
+CLAUDE_CODE_NPM_REGISTRY=https://registry.npmjs.org
+CLAUDE_CODE_OUTPUT_FORMAT=json
+```
+
+如果你希望直接复用现有 OpenCode 配置，也可以不额外新增 Claude 专属 key，`claude_code` 会自动回退到：
+
+```bash
+OPENCODE_API_KEY=...
+OPENCODE_BASE_URL=...
+OPENCODE_MODEL=...
+```
+
+如果你希望严格按 Claude Code 的模型环境变量控制，也可以补充：
+
+```bash
+ANTHROPIC_MODEL=qwen3-coder-plus
+ANTHROPIC_SMALL_FAST_MODEL=qwen3-coder-plus
+ANTHROPIC_DEFAULT_OPUS_MODEL=qwen3-coder-plus
+ANTHROPIC_DEFAULT_SONNET_MODEL=qwen3-coder-plus
+ANTHROPIC_DEFAULT_HAIKU_MODEL=qwen3-coder-plus
+```
+
+包装器会为每个仓库：
+
+1. 先构建并缓存一份 `claude_code` 基础镜像
+2. 每个仓库实验都从这份基础镜像启动一个新的独立 Docker 容器
+3. 只在该容器内 clone 仓库、写入 `~/.claude/settings.json`、运行 Claude Code、执行依赖安装和验证
+4. 成功后输出 `container_id=<id>`，交给现有 `EnvironmentManager.from_container()` 和 `VerifierAgent.verify()` 复用
+5. 失败时自动删除该 sandbox 容器，避免污染宿主机
+
+这里测到的是“Claude Code 前端 + 第三方 Anthropic 兼容网关 + 目标模型”的组合效果，不是官方 Claude 模型原生结果。
+
+## OpenCode 接入
+
+`open_code` 目前按官方 JavaScript/TypeScript SDK 方式接入，代码在 `experiment/opencode/`。调用时固定使用：
+
+- Node.js `>= 20.0.0`
+- 基础镜像内的 OpenCode SDK
+- Docker 容器内运行仓库配置
+- OpenCode 权限默认放开，对应实验里的 `yolo` 语义
+- 根目录 `.env` 中的 `OPENCODE_API_KEY`
+- 根目录 `.env` 中的 `OPENCODE_BASE_URL`
+- 根目录 `.env` 中的 `OPENCODE_MODEL`
+- 成功后直接输出 `container_id=<id>` 给统一 verifier 接管
+
+先准备 runner 镜像依赖：
+
+```bash
+cd experiment/opencode
+npm install
+```
+
+根目录 `.env` 至少需要：
+
+```bash
+OPENCODE_API_KEY=your_api_key
+OPENCODE_BASE_URL=https://your-openai-compatible-endpoint/v1
+OPENCODE_MODEL=qwen3-coder-plus
+OPENCODE_BASE_IMAGE=opencode-benchmark:latest
+OPENCODE_CLI_NPM_SPEC=opencode-ai@latest
+# 可选；不填时 launcher 会自动挑一个空闲端口
+OPENCODE_SERVER_PORT=
+```
+
+包装器会为每个仓库：
+
+1. 先构建并缓存一份 `open_code` 基础镜像
+2. 每个仓库实验都从这份基础镜像启动一个新的独立 Docker 容器
+3. 只在该容器内 clone 仓库、运行 OpenCode、执行依赖安装和验证
+4. 成功后输出 `container_id=<id>`，交给现有 `EnvironmentManager.from_container()` 和 `VerifierAgent.verify()` 复用
+5. 失败时自动删除该 sandbox 容器，避免污染宿主机
+
+OpenCode 官方 SDK 说明：
+
+- SDK 包名是 `@opencode-ai/sdk`
+- `createOpencode()` 会同时启动 server 和 client
+- 权限默认是允许的；实验里显式把 `bash` 和 `edit` 设为 `allow`，作为 `yolo` 等价配置
+- OpenAI 兼容接口应通过 `provider` 配置中的 `npm: "@ai-sdk/openai-compatible"`、`options.baseURL` 和 `options.apiKey` 接入
+
+## 运行命令
+
+运行 benchmark：
+
+```bash
+.venv/bin/python experiment/run_cli_benchmark.py \
+  --tools-config experiment/configs/tools.json \
+  --repo-list data/python329.jsonl \
+  --limit 10 \
+  --tool-parallelism 3
+```
+
+汇总结果：
+
+```bash
+.venv/bin/python experiment/summarize_results.py \
+  --result-dir experiment/results/<run_id>
+```
+
+## 输出结果
+
+每次运行会生成一套独立目录，结构如下：
+
+```text
+experiment/results/<run_id>/
+  raw_results.jsonl
+  summary.json
+  <tool>/
+    summary.json
+    <repo>/
+      run.log
+      result.json
+```
+
+其中：
+
+- `summary.json`：run 级汇总
+- `<tool>/summary.json`：tool 级汇总
+- `<tool>/<repo>/run.log`：单仓库原始日志
+- `<tool>/<repo>/result.json`：单仓库结构化结果
+
+额外说明：
+
+- `--tool-parallelism` 控制每个仓库下同时运行多少个工具；默认 `0` 表示自动使用启用工具数，也就是当前配置下默认并发跑 3 个 CLI。
+- benchmark 会在每个任务完成后实时刷新 `raw_results.jsonl` 和汇总文件，避免中途崩溃时整轮结果丢失。
+- 如果某个仓库在 launcher、verify 或 phase2 过程中抛出未捕获异常，脚本会兜底写出该仓库的 `run.log` 和 `result.json`，并继续处理其他任务。
+
+当启用统一验证时，`raw_results.jsonl` 里还会包含：
+
+- `verify_attempted`
+- `verify_success`
+- `verify_result`
+- `verify_error`
+
+## 建议口径
+
+为了让不同工具的成功率具备可比性，建议固定以下条件：
+
+- 使用同一份仓库清单
+- 使用同一份任务提示词
+- 使用同样的超时时间
+- 尽量统一容器工作目录约定
+- 成功判定优先采用 `VerifierAgent` 的结果，而不是工具自报成功
+
+## 结果隔离约定
+
+实验结果默认单独存放，不覆盖已有结果：
+
+- `run_cli_benchmark.py` 每次运行都会创建新的结果目录
+- 单仓库结果固定写到 `run_id/tool/repo/`
+- 每个 tool 自动生成自己的 `summary.json`
+- 每个 run 自动生成自己的 `summary.json`
+- `summarize_results.py` 默认会额外写新的 `run_summary_<时间戳-微秒>.json`，不覆盖已有结果
+- 如果你确实要写到固定文件，只能显式传 `--output`
