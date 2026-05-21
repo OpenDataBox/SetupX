@@ -1,9 +1,9 @@
-"""
-法官 Agent（逐条指控验证模式）
-职责：对检察官的每条指控做针对性验证，作出最终裁决
-- 不做开放式探索（那是检察官的事）
-- 对每条 charge 执行 1~2 条验证命令，确认证据是否属实
-- 有权驳回不合理的指控
+"""Judge sub-agent (per-charge verification).
+
+Verifies each prosecutor charge with targeted commands, then issues a verdict.
+- No open-ended exploration (that's the prosecutor's job).
+- Runs at most a few verification commands per charge.
+- May dismiss unreasonable charges.
 """
 
 import json
@@ -16,62 +16,62 @@ from .models import ProsecutionResult
 
 logger = get_logger("judge")
 
-# 每条指控最多 2 次验证命令
+# Max verification commands per charge.
 MAX_VERIFY_PER_CHARGE = 2
 
 SYSTEM_PROMPT = """\
-你是法官，负责**逐条验证**检察官的指控，然后作出裁决。
+You are the Judge. Your job is to **verify the prosecutor's charges one by one** and then issue a verdict.
 
-你不是检察官——你不做开放式调查。你的职责是：
-对检察官提出的每条指控，执行 1~2 条验证命令，确认该指控是否属实。
+You are not the prosecutor — you do not conduct open-ended investigation. Your responsibility:
+for each charge raised by the prosecutor, execute 1–2 verification commands to confirm whether that charge holds.
 
-## 审判流程
+## Trial procedure
 
-你会收到检察官的指控列表。对每条指控，你需要：
+You will receive the prosecutor's list of charges. For each charge:
 
-1. **阅读指控内容和证据**
-2. **设计一条验证命令**来复现检察官的发现（如检察官说 import X 失败，你也跑一次 import X）
-3. **根据验证结果判定**该指控是否成立
+1. **Read the charge and its evidence.**
+2. **Design one verification command** that reproduces the prosecutor's finding (e.g., if the prosecutor says `import X` fails, you also run `import X`).
+3. **Decide whether the charge holds based on the verification result.**
 
-## 判定标准
+## Decision criteria
 
-**指控成立**：你的验证结果与检察官一致（如依赖确实不可导入、编译确实失败）
-**指控驳回**：
-- 你的验证结果与检察官矛盾（如依赖实际可导入）
-- 检察官对项目类型判断错误（如对 C++/Java/JS 项目要求 Python 依赖）
-- 依赖仅在可选 extras 中，非核心依赖
-- 失败原因是外部服务/网络/测试逻辑 bug，非 Setup Agent 失职
-- 检察官用错了环境（如系统 python3 而非项目的 venv/conda）
+**Charge upheld**: your verification result matches the prosecutor's (the dependency is indeed not importable, compilation indeed fails, ...).
+**Charge dismissed**:
+- your verification result contradicts the prosecutor's (the dependency is in fact importable);
+- the prosecutor misjudged the project type (e.g., demanded Python dependencies on a C++/Java/JS project);
+- the dependency is only in optional extras, not a core dependency;
+- the failure is due to an external service / network / test-logic bug, not a Setup Agent dereliction;
+- the prosecutor used the wrong environment (e.g., system python3 instead of the project's venv/conda).
 
-## 最终裁决
+## Final verdict
 
-- 有 ≥1 条指控经你验证确认成立 → **guilty**
-- 所有指控均被驳回 → **not_guilty**
+- ≥1 charge upheld after your verification → **guilty**
+- All charges dismissed → **not_guilty**
 
-## 输出格式（每步必须输出一个合法 JSON 对象）
+## Output format (each step must emit one valid JSON object)
 
-对每条指控，先验证再判定。全部验证完后输出最终裁决：
+For each charge: verify, then decide. After all charges have been processed, emit the final verdict:
 
-{"thought": "验证指控N：...", "action": "exec_run", "args": {"command": "验证命令"}}
-{"thought": "所有指控验证完毕", "action": "verdict", "args": {
-  "verdict": "guilty 或 not_guilty",
-  "reasoning": "逐条说明：指控1 成立/驳回（原因），指控2 ...，综合裁决",
+{"thought": "verifying charge N: ...", "action": "exec_run", "args": {"command": "verification command"}}
+{"thought": "all charges have been verified", "action": "verdict", "args": {
+  "verdict": "guilty or not_guilty",
+  "reasoning": "Charge 1 upheld/dismissed (reason); Charge 2 ...; overall verdict",
   "charges_review": [
-    {"charge_index": 1, "upheld": true, "reason": "验证确认依赖 X 不可导入"},
-    {"charge_index": 2, "upheld": false, "reason": "依赖实际可导入，检察官用了系统 python 而非 venv"}
+    {"charge_index": 1, "upheld": true, "reason": "verification confirmed that dependency X is not importable"},
+    {"charge_index": 2, "upheld": false, "reason": "dependency is in fact importable; the prosecutor used system python instead of the venv"}
   ]
 }}
 
-## 硬性约束
+## Hard constraints
 
-- **不安装任何包**，不修改环境，只读取证
-- **不做开放式探索**：只围绕检察官的具体指控验证，不自己找新问题
-- **独立判断**：检察官说有罪不代表有罪，你的验证结果才是依据
+- **Install no packages**, modify no environment — read-only forensics.
+- **No open-ended exploration**: verify only the prosecutor's specific charges; do not look for new problems on your own.
+- **Independent judgment**: a prosecutor's claim of guilt does not entail guilt; your verification result is the basis.
 """
 
 
 class JudgeAgent:
-    """法官：逐条验证检察官指控，有限容器访问"""
+    """Judge: per-charge verification with limited container access."""
 
     def __init__(
         self,
@@ -92,46 +92,47 @@ class JudgeAgent:
             return ARKClient(config.ark)
         elif config.llm_provider == "openai":
             if config.openai is None:
-                raise ValueError("LLM_PROVIDER=openai 但未配置 OPENAI_API_KEY")
+                raise ValueError("LLM_PROVIDER=openai but OPENAI_API_KEY is not configured")
             return OpenAICompatibleClient(config.openai)
         else:
-            raise ValueError(f"不支持的 LLM 提供商: {config.llm_provider}")
+            raise ValueError(f"unsupported LLM provider: {config.llm_provider}")
 
     def rule(self) -> dict:
-        """执行审判，返回 {"verdict": "guilty"|"not_guilty", "reasoning": "..."}"""
+        """Run the trial; returns {"verdict": "guilty"|"not_guilty", "reasoning": "..."}."""
         if not self._prosecution.prosecute:
-            logger.info("检察官未起诉，裁定 not_guilty")
+            logger.info("prosecutor declined to prosecute -> verdict=not_guilty")
             self._llm.close()
-            return {"verdict": "not_guilty", "reasoning": "检察官未起诉，未发现实质性问题"}
+            return {"verdict": "not_guilty", "reasoning": "prosecutor declined to prosecute; no substantive issue found"}
 
         if self._env is None:
-            logger.warning("法官无容器访问权，退化为纸面审判")
+            logger.warning("judge has no container access, falling back to paper trial")
             return self._paper_trial()
 
-        logger.info(f"法官开始逐条验证（{len(self._prosecution.charges)} 条指控）")
+        logger.info(f"judge begins per-charge verification ({len(self._prosecution.charges)} charges)")
         return self._verify_charges()
 
     def _verify_charges(self) -> dict:
-        """逐条验证模式：对每条指控做针对性验证"""
+        """Per-charge verification mode."""
         charges = self._prosecution.charges
-        # 最大步数 = 每条指控 2 次验证 + 最终裁决的余量
-        max_steps = len(charges) * MAX_VERIFY_PER_CHARGE + 3
+        # Phase 2 judge is unbounded by step count.
+        max_steps = 9999
 
-        # 环境快照：让法官在验证前感知容器状态（可能发现检察官遗漏的 venv 等）
+        # Environment snapshot helps the judge see the actual container state
+        # (e.g., a venv the prosecutor may have missed).
         env_snapshot = self._env.get_env_snapshot()
-        logger.info(f"法官环境快照:\n{env_snapshot[:300]}")
+        logger.info(f"judge env snapshot:\n{env_snapshot[:300]}")
 
         prosecution_summary = self._format_prosecution()
         setup_summary = self._format_setup_history()
         verify_summary = self._format_verify_messages()
 
         user_content = (
-            f"## 容器环境快照\n\n```\n{env_snapshot}\n```\n\n"
-            f"## Setup Agent 执行轨迹（最近20步）\n\n{setup_summary}\n\n"
-            f"## Verifier 验证记录\n\n{verify_summary}\n\n"
-            f"## 检察官起诉书（共 {len(charges)} 条指控）\n\n{prosecution_summary}\n\n"
-            f"请逐条验证以上指控。每条指控你可以执行最多 {MAX_VERIFY_PER_CHARGE} 条验证命令。"
-            f"验证完所有指控后，输出最终裁决。"
+            f"## Container env snapshot\n\n```\n{env_snapshot}\n```\n\n"
+            f"## Setup Agent trajectory (last 20 steps)\n\n{setup_summary}\n\n"
+            f"## Verifier conversation\n\n{verify_summary}\n\n"
+            f"## Prosecution ({len(charges)} charges)\n\n{prosecution_summary}\n\n"
+            f"Verify each charge above. You may run at most {MAX_VERIFY_PER_CHARGE} verification commands per charge. "
+            f"After all charges have been verified, output the final verdict."
         )
 
         messages = [
@@ -141,7 +142,7 @@ class JudgeAgent:
 
         effective_step = 0
         api_failures = 0
-        for step in range(1, max_steps * 3 + 1):  # 给足重试空间
+        for step in range(1, max_steps * 3 + 1):  # leave headroom for retries
             if effective_step >= max_steps:
                 break
             logger.info(f"=== Judge Step {effective_step+1}/{max_steps} (raw={step}) ===")
@@ -150,20 +151,20 @@ class JudgeAgent:
                 raw = self._llm.chat(messages, json_mode=True)
             except Exception as e:
                 api_failures += 1
-                logger.warning(f"Judge LLM 调用失败（不计步数）: {e}，累计API失败={api_failures}")
+                logger.warning(f"Judge LLM call failed (not counted as a step): {e}, api_failures={api_failures}")
                 if api_failures >= 5:
-                    logger.error("Judge API 连续失败过多，中止验证")
+                    logger.error("Judge API failing repeatedly; abort verification")
                     break
                 continue
             effective_step += 1
 
-            logger.info(f"LLM 输出: {raw[:300]}")
+            logger.info(f"LLM output: {raw[:300]}")
             messages.append({"role": "assistant", "content": raw})
 
             try:
                 parsed = self._parse_json(raw)
             except Exception as e:
-                messages.append({"role": "user", "content": f"JSON 解析失败: {e}，请重新输出。"})
+                messages.append({"role": "user", "content": f"JSON parse failed: {e}; please respond again."})
                 continue
 
             action = parsed.get("action", "")
@@ -176,8 +177,8 @@ class JudgeAgent:
                 upheld = sum(1 for c in charges_review if c.get("upheld"))
                 dismissed = len(charges_review) - upheld
                 logger.info(
-                    f"法官裁决: {verdict} "
-                    f"(指控成立={upheld}, 驳回={dismissed})"
+                    f"judge verdict: {verdict} "
+                    f"(upheld={upheld}, dismissed={dismissed})"
                 )
                 self._llm.close()
                 return {"verdict": verdict, "reasoning": reasoning}
@@ -185,7 +186,7 @@ class JudgeAgent:
             elif action == "exec_run":
                 cmd = args.get("command", "")
                 if not cmd:
-                    messages.append({"role": "user", "content": "错误：exec_run 缺少 command"})
+                    messages.append({"role": "user", "content": "Error: exec_run is missing 'command'."})
                 else:
                     result = self._env.exec_run(cmd)
                     obs = (
@@ -193,16 +194,16 @@ class JudgeAgent:
                         f"stdout:\n{result.stdout}\n"
                         f"stderr:\n{result.stderr}"
                     )
-                    messages.append({"role": "user", "content": f"验证结果:\n{obs}"})
+                    messages.append({"role": "user", "content": f"Verification result:\n{obs}"})
 
             else:
-                messages.append({"role": "user", "content": f"未知 action='{action}'，只能用 exec_run / verdict"})
+                messages.append({"role": "user", "content": f"Unknown action='{action}'; only exec_run / verdict allowed"})
 
-        # 达到步数上限，强制要求裁决
-        logger.warning("法官达到步数上限，请求最终裁决")
+        # Step-cap reached: force a verdict.
+        logger.warning("judge hit step cap; requesting final verdict")
         messages.append({
             "role": "user",
-            "content": "已达到验证步数上限。请立即根据已有验证结果输出最终裁决（verdict action）。",
+            "content": "Step cap reached. Please immediately output the final verdict (verdict action) based on existing verification results.",
         })
         try:
             raw = self._llm.chat(messages, json_mode=True)
@@ -211,36 +212,36 @@ class JudgeAgent:
                 self._llm.close()
                 return {
                     "verdict": parsed["args"].get("verdict", "guilty"),
-                    "reasoning": parsed["args"].get("reasoning", "步数上限"),
+                    "reasoning": parsed["args"].get("reasoning", "step cap"),
                 }
         except Exception as e:
-            logger.error(f"强制裁决失败: {e}")
+            logger.error(f"forced verdict failed: {e}")
 
         self._llm.close()
-        # 法官无法完成验证 → 标记异常，不做 guilty/not_guilty 判定
-        return {"verdict": "error", "reasoning": "法官验证未完成（API失败或步数上限）"}
+        # Judge could not finish verification -> mark as anomaly, do not make a guilty/not_guilty call.
+        return {"verdict": "error", "reasoning": "judge verification did not finish (API failure or step cap)"}
 
     def _paper_trial(self) -> dict:
-        """纸面审判（无容器，向后兼容）"""
+        """Paper trial (no container; backwards-compat path)."""
         setup_summary = self._format_setup_history()
         prosecution_summary = self._format_prosecution()
 
         paper_prompt = (
-            "你是法官。根据以下材料作出裁决。\n"
-            "注意：你没有容器访问权，只能根据书面材料判断。\n"
-            "如果检察官的证据不充分或指控不合理，应裁定 not_guilty。\n\n"
-            "应当驳回指控的情形：\n"
-            "- 检察官对项目类型判断错误（如对 C++ 项目检查 Python 依赖）\n"
-            "- 依赖仅在可选 extras 中，非核心依赖\n"
-            "- 失败原因是外部服务/网络/测试逻辑 bug\n"
-            "- 检察官可能用错了环境（系统 python3 vs 项目 venv）\n\n"
-            "输出格式（合法 JSON 对象）：{\"verdict\": \"guilty\"|\"not_guilty\", \"reasoning\": \"裁决依据\"}"
+            "You are the Judge. Issue a verdict based solely on the materials below.\n"
+            "Note: you have no container access; you can only judge from the written record.\n"
+            "If the prosecutor's evidence is weak or the charges are unreasonable, rule not_guilty.\n\n"
+            "Charges should be dismissed when:\n"
+            "- the prosecutor misjudged the project type (e.g., checked Python dependencies on a C++ project);\n"
+            "- the dependency is only in optional extras, not a core dependency;\n"
+            "- the failure is due to an external service / network / test-logic bug;\n"
+            "- the prosecutor likely used the wrong environment (system python3 vs the project's venv).\n\n"
+            "Output format (a valid JSON object): {\"verdict\": \"guilty\"|\"not_guilty\", \"reasoning\": \"basis of the verdict\"}"
         )
 
         user_content = (
-            f"## Setup Agent 执行轨迹\n\n{setup_summary}\n\n"
-            f"## 检察官调查报告\n\n{prosecution_summary}\n\n"
-            "请作出裁决。"
+            f"## Setup Agent trajectory\n\n{setup_summary}\n\n"
+            f"## Prosecutor investigation report\n\n{prosecution_summary}\n\n"
+            "Please issue a verdict."
         )
 
         messages = [
@@ -249,15 +250,15 @@ class JudgeAgent:
         ]
 
         raw = self._llm.chat(messages, json_mode=True)
-        logger.info(f"法官纸面裁决: {raw[:500]}")
+        logger.info(f"judge paper-trial verdict: {raw[:500]}")
         self._llm.close()
 
         try:
             result = self._parse_json(raw)
             return {"verdict": result.get("verdict", "error"), "reasoning": result.get("reasoning", "")}
         except Exception as e:
-            logger.error(f"裁决解析失败: {e}")
-            return {"verdict": "error", "reasoning": f"裁决解析失败: {e}"}
+            logger.error(f"failed to parse verdict: {e}")
+            return {"verdict": "error", "reasoning": f"failed to parse verdict: {e}"}
 
     def _format_setup_history(self) -> str:
         recent = self._setup_history[-20:]
@@ -272,15 +273,15 @@ class JudgeAgent:
             exit_code = result.get("exit_code", "?")
             stdout = (result.get("stdout") or "")[:200]
             lines.append(
-                f"[步骤{step}] {action_type} | thought: {thought}\n"
-                f"  内容: {json.dumps(content, ensure_ascii=False)[:150]}\n"
-                f"  结果: exit_code={exit_code}, stdout: {stdout}"
+                f"[step {step}] {action_type} | thought: {thought}\n"
+                f"  content: {json.dumps(content, ensure_ascii=False)[:150]}\n"
+                f"  result: exit_code={exit_code}, stdout: {stdout}"
             )
-        return "\n\n".join(lines) if lines else "（无历史）"
+        return "\n\n".join(lines) if lines else "(no history)"
 
     def _format_verify_messages(self) -> str:
         if not self._verify_messages:
-            return "（无 Verifier 对话记录）"
+            return "(no verifier conversation)"
         lines = []
         for msg in self._verify_messages:
             role = msg.get("role", "?")
@@ -290,12 +291,12 @@ class JudgeAgent:
 
     def _format_prosecution(self) -> str:
         if not self._prosecution.prosecute:
-            return "检察官选择不起诉：未发现实质性问题。"
-        lines = ["检察官提起诉讼，指控如下：\n"]
+            return "Prosecutor declined to prosecute: no substantive issue found."
+        lines = ["The prosecutor brings the following charges:\n"]
         for i, charge in enumerate(self._prosecution.charges, 1):
             claim = charge.get("claim", "")
             evidence = charge.get("evidence", "")
-            lines.append(f"**指控{i}**：{claim}\n证据：\n{evidence}\n")
+            lines.append(f"**Charge {i}**: {claim}\nEvidence:\n{evidence}\n")
         return "\n".join(lines)
 
     @staticmethod
@@ -311,4 +312,4 @@ class JudgeAgent:
         m = re.search(r"\{.*\}", raw, re.DOTALL)
         if m:
             return json.loads(m.group(0))
-        raise ValueError(f"无法提取 JSON: {raw[:200]}")
+        raise ValueError(f"could not extract JSON: {raw[:200]}")

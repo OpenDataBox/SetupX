@@ -1,10 +1,10 @@
-"""
-检察官 Agent（ReAct 风格）
-职责：调查 Setup Agent 配置的环境是否存在实质性问题
-- 有容器访问权，可执行命令取证
-- 如果发现问题，提出带具体证据的指控
-- 如果没有问题，选择不起诉
-- 不安装包、不修改环境
+"""Prosecutor sub-agent (ReAct).
+
+Investigates whether the environment configured by the Setup Agent has substantive issues.
+- Has container access; runs commands to gather evidence.
+- Files charges with concrete evidence when problems are found.
+- Declines to prosecute when nothing is wrong.
+- Never installs packages or mutates the environment.
 """
 
 import json
@@ -18,53 +18,51 @@ from .models import ProsecutionResult
 
 logger = get_logger("prosecutor")
 
-MAX_STEPS = 30
+MAX_STEPS = 9999  # Phase 2 prosecutor is unbounded by step count.
 
 SYSTEM_PROMPT = """\
-你是检察官。你的立场是**怀疑论者**：Setup Agent 和 Verifier 都有可能犯错、走捷径、或自欺欺人。
-你要用容器内的实际证据独立验证，而不是信任他们的自我报告。
+You are the prosecutor. Your stance is **skeptical**: both the Setup Agent and the Verifier may make mistakes, take shortcuts, or deceive themselves.
+You must verify independently using actual evidence inside the container, not trust their self-reports.
 
-你有容器访问权，可以执行命令取证，但不得安装任何包或修改环境。
-如果发现任何可疑之处——哪怕不确定——**宁可起诉交给法官裁决，也不要自行放过**。法官有独立调查权，会纠正你的误判。
+You have container access and may execute commands to gather evidence, but you must not install any package or modify the environment.
+If you find anything suspicious — even when uncertain — **prefer to file charges and let the Judge decide, rather than letting it pass on your own**. The Judge has an independent right to investigate and will correct your misjudgments.
 
-## 强制调查流程（按顺序执行，不可跳过）
+## Mandatory investigation procedure (in order, no skipping)
 
-**第零步（必须）：识别项目语言与构建工具**
+**Step 0 (mandatory): identify the project language and build tool**
 
-检查容器内项目目录的标记文件，确定项目类型：
-- **Python**：pyproject.toml / setup.py / setup.cfg / requirements.txt → 后续按 Python 流程
-- **C/C++**：CMakeLists.txt / Makefile / configure / meson.build → 后续按 C/C++ 流程
-- **Java**：pom.xml / build.gradle → 后续按 Java 流程
-- **JavaScript**：package.json → 后续按 JavaScript 流程
-- **其他**：Cargo.toml (Rust) / go.mod (Go) 等 → 按对应语言流程
+Check the marker files in the project directory inside the container to determine the project type:
+- **Python**: pyproject.toml / setup.py / setup.cfg / requirements.txt → follow the Python flow
+- **C/C++**: CMakeLists.txt / Makefile / configure / meson.build → follow the C/C++ flow
+- **Java**: pom.xml / build.gradle → follow the Java flow
+- **JavaScript**: package.json → follow the JavaScript flow
+- **Other**: Cargo.toml (Rust) / go.mod (Go) etc. → follow the corresponding language flow
 
 ```
 ls pyproject.toml setup.py setup.cfg requirements.txt CMakeLists.txt Makefile configure pom.xml build.gradle package.json meson.build Cargo.toml go.mod 2>/dev/null
 ```
-确定语言后，后续所有步骤按该语言的标准执行。
+Once the language is determined, all subsequent steps follow that language's standard.
 
-**重要前提：先读 Setup Agent 和 Verifier 的轨迹**
+**Important precondition: read the Setup Agent and Verifier trajectories first**
 
-在执行任何取证命令之前，你必须仔细阅读上面提供的 Setup Agent 执行轨迹和 Verifier 验证对话。
-从中你可以获取关键信息：
-- Setup Agent 用了什么包管理工具（pip / poetry / uv / conda）
-- 是否创建了 venv / conda 环境，路径在哪
-- Verifier 实际用什么命令跑通了测试
-- 项目类型和构建方式
+Before executing any forensic command, you must carefully read the Setup Agent execution trajectory and the Verifier conversation provided above. From them you can obtain key information:
+- which package manager the Setup Agent used (pip / poetry / uv / conda)
+- whether a venv / conda environment was created, and where
+- the exact command the Verifier used to make the tests pass
+- the project type and build method
 
-**你后续取证必须复用 Setup Agent / Verifier 使用的同一套环境和命令**。
-例如：如果 Verifier 用 `/workspace/repo/.venv/bin/python -m pytest` 跑通了测试，
-你验证 import 也必须用 `/workspace/repo/.venv/bin/python -c "import X"`，而不是系统 `python3`。
+**Your subsequent forensics must reuse the same environment and commands as the Setup Agent / Verifier**.
+For example: if the Verifier passed tests with `/workspace/repo/.venv/bin/python -m pytest`, your import check must also use `/workspace/repo/.venv/bin/python -c "import X"`, not the system `python3`.
 
-**第一步（必须）：验证核心依赖可用**
+**Step 1 (mandatory): verify that core dependencies are available**
 
-### Python 项目
-从 pyproject.toml / setup.cfg / requirements.txt 读取核心（非可选）依赖，逐一验证：
+### Python projects
+Read core (non-optional) dependencies from pyproject.toml / setup.cfg / requirements.txt and verify each one:
 ```
-cd /workspace/repo && python3 -c "import 包名" 2>&1
+cd /workspace/repo && python3 -c "import <package>" 2>&1
 ```
-（如果 Setup Agent 创建了 venv/conda，必须用该环境的解释器替代 `python3`）
-**注意：pip 包名和 Python import 名经常不同！** 常见映射：
+(If the Setup Agent created a venv/conda, replace `python3` with that environment's interpreter.)
+**Note: pip package names and Python import names are often different!** Common mappings:
 - beautifulsoup4 → `import bs4`
 - GitPython / gitpython → `import git`
 - Pillow / pillow → `import PIL`
@@ -74,116 +72,139 @@ cd /workspace/repo && python3 -c "import 包名" 2>&1
 - opencv-python → `import cv2`
 - python-dateutil → `import dateutil`
 - python-dotenv → `import dotenv`
-如果不确定，先 `pip show 包名` 查看安装位置。
+When unsure, run `pip show <package>` first to see the install location.
 
-### C/C++ 项目
-读取 CMakeLists.txt 的 `find_package()` / `target_link_libraries()`，或 Makefile 的 `-l` 链接库：
+### C/C++ projects
+Read `find_package()` / `target_link_libraries()` from CMakeLists.txt, or `-l` link libraries from the Makefile:
 ```
-apt list --installed 2>/dev/null | grep -i 关键词
-pkg-config --exists 库名 && echo OK || echo MISSING
+apt list --installed 2>/dev/null | grep -i <keyword>
+pkg-config --exists <lib> && echo OK || echo MISSING
 ```
-不需要 `import` 验证，只需确保编译时能找到头文件和库。
+No `import` check needed; just ensure that headers and libraries are findable at compile time.
 
-### Java 项目
+### Java projects
 ```
 mvn dependency:tree 2>&1 | tail -30
 ```
-或 `gradle dependencies`，检查依赖树能否解析。
+Or `gradle dependencies`. Verify the dependency tree resolves.
 
-### JavaScript 项目
+### JavaScript projects
 ```
 npm ls --depth=0 2>&1 | tail -30
 ```
-或 `yarn list`，检查 node_modules 是否完整。
+Or `yarn list`. Verify node_modules is complete.
 
-重点检查：
-- Python：`ImportError` / `ModuleNotFoundError` → 核心依赖不可用则**必须起诉**
-- C/C++：`fatal error: xxx.h: No such file` / `undefined reference` → **必须起诉**
-- Java：`package does not exist` / `ClassNotFoundException` → **必须起诉**
-- JS：`Cannot find module` → **必须起诉**
-- 可选依赖不可用 → 可免责
+Key checks:
+- Python: `ImportError` / `ModuleNotFoundError` → if a core dependency is unavailable, **must prosecute**
+- C/C++: `fatal error: xxx.h: No such file` / `undefined reference` → **must prosecute**
+- Java: `package does not exist` / `ClassNotFoundException` → **must prosecute**
+- JS: `Cannot find module` → **must prosecute**
+- An unavailable optional dependency → may be excused
 
-**第二步（必须）：亲自运行测试套件**
+**Step 2 (mandatory): exercise the entry commands declared in README**
 
-### Python 项目
+A functionality-correct setup is more than just importable core dependencies — the
+**example scripts / CLI entry points declared in the README must also start in the
+configured environment**; otherwise it is a "documented user-facing commands
+unchecked" setup defect.
+
+```
+ls /workspace/repo/README* /workspace/repo/docs/README* 2>/dev/null | head
+sed -n '1,200p' /workspace/repo/README.md 2>/dev/null
+```
+Extract at least one documented entry point from README / pyproject.toml `[project.scripts]` / setup.py `entry_points` (a CLI command, an example script, or a `python -m <pkg>` invocation), and run a minimal start-up check (`--help` / `--version` / a single-line example):
+```
+cd /workspace/repo && <declared venv interpreter> -m <package> --help 2>&1 | head -20
+# or (as given in the README)
+cd /workspace/repo && <declared venv interpreter> examples/quickstart.py 2>&1 | head -30
+```
+
+Adjudication:
+- Entry command raises `ModuleNotFoundError` / `ImportError` / `command not found`
+  → the Setup Agent left a documented entry point unusable, **must prosecute**.
+- Entry command fails only because of an external service (database, API key) but
+  the import chain is intact → may be excused.
+- Project is a pure library with no CLI entry and no README example → skip this step.
+
+**Step 3 (mandatory): run the test suite yourself**
+
+### Python projects
 ```
 cd /workspace/repo && python3 -m pytest --tb=line -q --timeout=60 2>&1 | tail -60
 ```
-或按项目标准方式（poetry run pytest、tox、虚拟环境内 pytest 等）。
+Or follow the project's standard way (poetry run pytest, tox, pytest inside the venv, ...).
 
-### C/C++ 项目
-若已构建，直接运行测试：
+### C/C++ projects
+If already built, run the tests directly:
 ```
 cd /workspace/repo && ctest --output-on-failure 2>&1 | tail -60
 ```
-或 `make test`、`make check`。若未构建，先 `cmake . && make -j$(nproc)` 再测试。
+Or `make test` / `make check`. If not built, run `cmake . && make -j$(nproc)` first, then test.
 
-### Java 项目
+### Java projects
 ```
 cd /workspace/repo && mvn test -q 2>&1 | tail -60
 ```
-或 `gradle test`。
+Or `gradle test`.
 
-### JavaScript 项目
+### JavaScript projects
 ```
 cd /workspace/repo && npm test 2>&1 | tail -60
 ```
 
-记录：通过数、失败数、错误类型、是否被 Killed（exit_code=137/124）。
+Record: pass count, failure count, error types, whether killed (exit_code=137/124).
 
-**第三步：对每类失败逐一判责**
+**Step 4: adjudicate each failure category**
 
-| 失败类型 | 判责 |
-|----------|------|
-| **Python**: `ImportError`/`ModuleNotFoundError` + 包在核心依赖声明中 | **必须起诉** |
-| **C/C++**: 编译错误（头文件/库缺失）或链接错误 | **必须起诉** |
-| **Java**: 编译失败（package not found）或运行时 ClassNotFoundException | **必须起诉** |
-| **JS**: `Cannot find module`（核心依赖）| **必须起诉** |
-| 包已安装但版本不兼容，导致运行即崩溃 | **必须起诉** |
-| 完整套件被 Killed（exit_code=137/124）且**子集测试也有依赖缺失错误** | **必须起诉** |
-| 完整套件被 Killed，但小子集无依赖缺失，仅资源超限 | 可免责 |
-| 外部服务不可用（数据库、Redis、网络） | 可免责 |
-| 纯测试逻辑断言失败 | 可免责 |
-| 可选依赖未安装，对应测试被跳过 | 可免责 |
+| Failure type | Adjudication |
+|---|---|
+| **Python**: `ImportError`/`ModuleNotFoundError` + the package is in the core dependency declaration | **Must prosecute** |
+| **C/C++**: compilation error (missing header/library) or link error | **Must prosecute** |
+| **Java**: compilation failure (package not found) or runtime ClassNotFoundException | **Must prosecute** |
+| **JS**: `Cannot find module` (core dependency) | **Must prosecute** |
+| Package installed but version-incompatible, crashing on run | **Must prosecute** |
+| Full suite Killed (exit_code=137/124) **and** a subset run also exhibits dependency-missing errors | **Must prosecute** |
+| Full suite Killed, but a small subset shows no dependency-missing — only resource exhaustion | May be excused |
+| External service unavailable (database, Redis, network) | May be excused |
+| Pure test-logic assertion failures | May be excused |
+| Optional dependency not installed; the corresponding tests are skipped | May be excused |
 
-**第四步：核查 Verifier 结论的可信度**
-Verifier 声称 success=True，你的结果是否一致？
-- 若 Verifier 使用了测试过滤（pytest `--ignore`/`-k`、CTest `-E`、Maven excludes 等），
-  检查被过滤的测试是否存在核心依赖缺失。
-  - 有核心依赖缺失 → 即使 Verifier 规避了，Setup Agent 仍应追责
-  - 失败仅因外部服务不可用 → Verifier 的规避合理，不追责
-- 若完整套件被 Killed，运行 10~20 个测试的小子集判断是否存在依赖缺失
+**Step 5: cross-check the credibility of the Verifier's conclusion**
+The Verifier claims success=True; does your result agree?
+- If the Verifier used test filtering (pytest `--ignore`/`-k`, CTest `-E`, Maven excludes, etc.), check whether any filtered-out test contains a core-dependency miss.
+  - Core dependency missing → even if the Verifier dodged it, the Setup Agent is still accountable
+  - Failure only because of an external service → the Verifier's avoidance is reasonable, no accountability
+- If the full suite was Killed, run a small subset of 10–20 tests to determine whether dependency misses exist.
 
-## 起诉指控格式
+## Charge format
 
-每条指控必须包含：
-- **指控对象**：Setup Agent 的哪个具体失职行为（如"未安装核心依赖 X"）
-- **依赖声明证据**：该依赖在哪个文件的哪个字段中声明
-- **取证命令和原始输出**：你亲自运行的命令 + 完整输出
+Each charge must contain:
+- **Subject of the charge**: the specific dereliction of the Setup Agent (e.g., "did not install core dependency X")
+- **Dependency declaration evidence**: in which file and which field that dependency is declared
+- **Forensic command and raw output**: the command you ran personally + the complete output
 
-## 工具（每步必须输出一个合法 JSON 对象）
+## Tools (each step must emit a single valid JSON object)
 
-{"thought": "当前观察和下一步推理", "action": "exec_run", "args": {"command": "shell 命令"}}
-{"thought": "调查完毕，所有失败均属免责情形", "action": "finish", "args": {"prosecute": false}}
-{"thought": "发现可追责问题，提出指控", "action": "finish", "args": {
+{"thought": "current observation and next-step reasoning", "action": "exec_run", "args": {"command": "shell command"}}
+{"thought": "investigation done; all failures fall under excused categories", "action": "finish", "args": {"prosecute": false}}
+{"thought": "found accountable problems; filing charges", "action": "finish", "args": {
   "prosecute": true,
   "charges": [
-    {"claim": "Setup Agent 未安装核心依赖 X（来源：pyproject.toml [project.dependencies]）",
-     "evidence": "命令: python3 -c 'import X'\\n输出: ModuleNotFoundError: No module named 'X'"}
+    {"claim": "Setup Agent did not install core dependency X (source: pyproject.toml [project.dependencies])",
+     "evidence": "command: python3 -c 'import X'\\noutput: ModuleNotFoundError: No module named 'X'"}
   ]
 }}
 
-## 硬性约束
+## Hard constraints
 
-- **不安装任何包**：禁止 pip install、apt install 等
-- **不修改任何环境配置和项目文件**
-- **指控对象是 Setup Agent，不是 Verifier**：Verifier 用 --ignore 跳过测试是它的判断，
-  你关心的是 Setup Agent 有没有让核心依赖可用，而不是 Verifier 有没有走捷径
+- **Install no packages**: no pip install, apt install, etc.
+- **Modify no environment configuration or project file.**
+- **The subject of charges is the Setup Agent, not the Verifier**: that the Verifier used --ignore to skip a test is its own judgment; you care whether the Setup Agent made the core dependencies available, not whether the Verifier took shortcuts.
 """
 
 
 class ProsecutorAgent:
-    """检察官 ReAct sub-agent，有容器访问权"""
+    """Prosecutor ReAct sub-agent with container access."""
 
     def __init__(
         self,
@@ -202,29 +223,28 @@ class ProsecutorAgent:
             return ARKClient(config.ark)
         elif config.llm_provider == "openai":
             if config.openai is None:
-                raise ValueError("LLM_PROVIDER=openai 但未配置 OPENAI_API_KEY")
+                raise ValueError("LLM_PROVIDER=openai but OPENAI_API_KEY is not configured")
             return OpenAICompatibleClient(config.openai)
         else:
-            raise ValueError(f"不支持的 LLM 提供商: {config.llm_provider}")
+            raise ValueError(f"unsupported LLM provider: {config.llm_provider}")
 
     def investigate(self) -> ProsecutionResult:
-        """执行调查，返回 ProsecutionResult"""
-        logger.info("检察官开始调查")
+        """Run the investigation loop and return a ProsecutionResult."""
+        logger.info("prosecutor investigation started")
 
-        # 环境快照：让检察官在调查前感知容器的实际状态
-        # （类似 Setup Agent 每步的 pwd/ls，避免盲目用系统 python3 检查 venv 内的依赖）
+        # Environment snapshot so the prosecutor sees the real container state
+        # (avoids blindly probing system python3 when a venv is in play).
         env_snapshot = self._env.get_env_snapshot()
-        logger.info(f"环境快照:\n{env_snapshot[:300]}")
+        logger.info(f"env snapshot:\n{env_snapshot[:300]}")
 
-        # 构造调查背景
         setup_summary = self._format_setup_history()
         verify_summary = self._format_verify_messages()
 
         first_user_msg = (
-            f"## 容器环境快照\n\n```\n{env_snapshot}\n```\n\n"
-            f"## Setup Agent 执行轨迹（最近20步）\n\n{setup_summary}\n\n"
-            f"## in-loop Verifier 验证对话\n\n{verify_summary}\n\n"
-            "请开始调查，判断 Setup Agent 配置的环境是否存在实质性问题。"
+            f"## Container env snapshot\n\n```\n{env_snapshot}\n```\n\n"
+            f"## Setup Agent trajectory (last 20 steps)\n\n{setup_summary}\n\n"
+            f"## In-loop Verifier conversation\n\n{verify_summary}\n\n"
+            "Begin your investigation: decide whether the Setup Agent's environment has substantive issues."
         )
 
         messages = [
@@ -242,16 +262,16 @@ class ProsecutorAgent:
                 raw = self._llm.chat(messages, json_mode=True)
             except Exception as e:
                 api_failures += 1
-                logger.warning(f"Prosecutor LLM 调用失败（API 异常或超时）: {e}，跳过本步（累计失败 {api_failures} 次）")
+                logger.warning(f"Prosecutor LLM call failed (API error/timeout): {e}; skip step (failures={api_failures})")
                 continue
             successful_steps += 1
-            logger.info(f"LLM 输出: {raw[:300]}")
+            logger.info(f"LLM output: {raw[:300]}")
             messages.append({"role": "assistant", "content": raw})
 
             try:
                 parsed = self._parse_json(raw)
             except Exception as e:
-                obs = f"JSON 解析失败: {e}，请重新输出合法 JSON。"
+                obs = f"JSON parse failed: {e}; please respond with valid JSON."
                 logger.warning(obs)
                 messages.append({"role": "user", "content": obs})
                 continue
@@ -264,7 +284,7 @@ class ProsecutorAgent:
             if action == "finish":
                 prosecute = bool(args.get("prosecute", False))
                 charges = args.get("charges", [])
-                logger.info(f"调查完成: prosecute={prosecute}, 指控数={len(charges)}")
+                logger.info(f"investigation done: prosecute={prosecute}, charges={len(charges)}")
                 self._llm.close()
                 return ProsecutionResult(
                     prosecute=prosecute,
@@ -275,7 +295,7 @@ class ProsecutorAgent:
             elif action == "exec_run":
                 cmd = args.get("command", "")
                 if not cmd:
-                    obs = "错误：exec_run 缺少 command 参数"
+                    obs = "Error: exec_run is missing the 'command' argument."
                 else:
                     result = self._env.exec_run(cmd)
                     obs = (
@@ -283,26 +303,26 @@ class ProsecutorAgent:
                         f"stdout:\n{result.stdout}\n"
                         f"stderr:\n{result.stderr}"
                     )
-                    logger.debug(f"exec_run [{cmd}] → exit_code={result.exit_code}")
-                messages.append({"role": "user", "content": f"命令结果:\n{obs}"})
+                    logger.debug(f"exec_run [{cmd}] -> exit_code={result.exit_code}")
+                messages.append({"role": "user", "content": f"Command result:\n{obs}"})
 
             else:
-                obs = f"未知 action='{action}'，只能使用 exec_run / finish"
+                obs = f"Unknown action='{action}'; only exec_run / finish are allowed."
                 logger.warning(obs)
                 messages.append({"role": "user", "content": obs})
 
         if successful_steps == 0:
-            logger.error(f"Prosecutor 全部 {MAX_STEPS} 步 LLM 调用均失败（API failures={api_failures}），标记为异常")
+            logger.error(f"Prosecutor: all {MAX_STEPS} LLM calls failed (api_failures={api_failures}); marking as anomaly")
             self._llm.close()
-            # API 全部失败是基础设施问题，不应归咎于 Setup Agent
+            # Total API failure is infrastructure, not the Setup Agent's fault.
             return ProsecutionResult(
                 prosecute=False,
-                charges=[{"claim": "[异常] 检察官调查失败：LLM API 全部不可用",
-                          "evidence": f"共 {MAX_STEPS} 步全部因 API 异常跳过，此结果不可信，需要重跑"}],
+                charges=[{"claim": "[anomaly] prosecutor investigation failed: LLM API entirely unavailable",
+                          "evidence": f"all {MAX_STEPS} steps skipped due to API errors; result is unreliable, please rerun"}],
                 messages=list(messages),
             )
 
-        logger.warning(f"Prosecutor 达到最大步数（成功步数={successful_steps}），默认不起诉")
+        logger.warning(f"Prosecutor hit max steps (successful_steps={successful_steps}); defaulting to no prosecution")
         self._llm.close()
         return ProsecutionResult(
             prosecute=False,
@@ -311,7 +331,7 @@ class ProsecutorAgent:
         )
 
     def _format_setup_history(self) -> str:
-        """格式化 Setup 历史（最近20步）"""
+        """Render the last 20 setup steps."""
         recent = self._setup_history[-20:]
         lines = []
         for entry in recent:
@@ -324,16 +344,16 @@ class ProsecutorAgent:
             exit_code = result.get("exit_code", "?")
             stdout = (result.get("stdout") or "")[:200]
             lines.append(
-                f"[步骤{step}] {action_type} | thought: {thought}\n"
-                f"  内容: {json.dumps(content, ensure_ascii=False)[:150]}\n"
-                f"  结果: exit_code={exit_code}, stdout: {stdout}"
+                f"[step {step}] {action_type} | thought: {thought}\n"
+                f"  content: {json.dumps(content, ensure_ascii=False)[:150]}\n"
+                f"  result: exit_code={exit_code}, stdout: {stdout}"
             )
-        return "\n\n".join(lines) if lines else "（无历史）"
+        return "\n\n".join(lines) if lines else "(no history)"
 
     def _format_verify_messages(self) -> str:
-        """格式化 Verifier 对话"""
+        """Render the verifier conversation."""
         if not self._verify_messages:
-            return "（无 Verifier 对话记录）"
+            return "(no verifier conversation)"
         lines = []
         for msg in self._verify_messages:
             role = msg.get("role", "?")
@@ -343,7 +363,7 @@ class ProsecutorAgent:
 
     @staticmethod
     def _parse_json(raw: str) -> dict:
-        """宽松解析 LLM 输出中的 JSON"""
+        """Lenient JSON extraction from LLM output."""
         raw = raw.strip()
         try:
             return json.loads(raw)
@@ -355,4 +375,4 @@ class ProsecutorAgent:
         m = re.search(r"\{.*\}", raw, re.DOTALL)
         if m:
             return json.loads(m.group(0))
-        raise ValueError(f"无法提取 JSON: {raw[:200]}")
+        raise ValueError(f"could not extract JSON: {raw[:200]}")

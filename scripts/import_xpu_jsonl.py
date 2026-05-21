@@ -1,13 +1,33 @@
-"""
-将 XPU JSONL 批量导入 pgvector 数据库。
-用法: .venv/bin/python scripts/import_xpu_jsonl.py [jsonl_path] [--clear]
+"""Bulk-import an XPU experience JSONL into the local pgvector store.
 
---clear: 导入前清空 xpu_entries 表
+Usage:
+    python scripts/import_xpu_jsonl.py <jsonl_path> [--clear]
+
+    --clear   Truncate the target table before importing.
+
+Each JSONL line is one experience entry with this schema:
+
+    {
+      "id":         "unique-string",
+      "signals":    {... "applicability": {...} ...},
+      "advice_nl":  [...],
+      "atoms":      [{"name": "...", "args": {...}}, ...],
+      "telemetry":  {...}    // optional
+    }
+
+The target table name comes from `XPU_TABLE` (env), default `xpu_entries`.
+The pgvector connection string comes from `dns` (env). The embedding model
+comes from `EMBEDDING_*` (env). All of these live in `.env` already.
+
+The table and IVFFlat index are created on first connection (see
+`src/xpu/xpu_vector_store.py::create_xpu_table`); you do not need a separate
+schema migration step.
 """
 
 import json
 import sys
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -20,22 +40,24 @@ from src.xpu.xpu_adapter import XpuEntry, XpuAtom
 def import_jsonl(jsonl_path: str, clear: bool = False) -> None:
     path = Path(jsonl_path)
     if not path.exists():
-        print(f"文件不存在: {jsonl_path}", file=sys.stderr)
+        print(f"file not found: {jsonl_path}", file=sys.stderr)
         sys.exit(1)
 
     lines = path.read_text(encoding="utf-8").splitlines()
     total = len([l for l in lines if l.strip()])
-    print(f"共 {total} 条经验，开始导入...")
+    print(f"{total} entries to import...")
 
     store = XpuVectorStore()
+    table = store._table
+    print(f"target table: {table}")
 
     if clear:
         conn = store._get_conn()
         try:
             with conn.cursor() as cur:
-                cur.execute("DELETE FROM xpu_entries;")
+                cur.execute(f"DELETE FROM {table};")
                 conn.commit()
-            print("已清空 xpu_entries 表")
+            print(f"cleared table {table}")
         finally:
             store._put_conn(conn)
 
@@ -49,7 +71,7 @@ def import_jsonl(jsonl_path: str, clear: bool = False) -> None:
         try:
             raw = json.loads(line)
         except json.JSONDecodeError as e:
-            print(f"[{i}] JSON 解析失败，跳过: {e}")
+            print(f"[{i}] JSON parse failed, skipped: {e}")
             fail += 1
             continue
 
@@ -60,8 +82,7 @@ def import_jsonl(jsonl_path: str, clear: bool = False) -> None:
 
         entry = XpuEntry(
             id=raw["id"],
-            context=raw.get("context", {}),
-            signals=raw.get("signals", {}),
+            signals=raw.get("signals", {}) or {},
             advice_nl=raw.get("advice_nl", []),
             atoms=atoms,
             telemetry=raw.get("telemetry", {}),
@@ -71,46 +92,48 @@ def import_jsonl(jsonl_path: str, clear: bool = False) -> None:
             text = build_xpu_text(entry)
             embedding = text_to_embedding(text)
 
-            # 带 telemetry 的 upsert
             conn = store._get_conn()
             try:
                 with conn.cursor() as cur:
                     embedding_str = "[" + ",".join(str(float(x)) for x in embedding) + "]"
-                    cur.execute("""
-                        INSERT INTO xpu_entries (id, context, signals, advice_nl, atoms, embedding, telemetry)
-                        VALUES (%s, %s, %s, %s, %s, %s::vector, %s)
+                    cur.execute(
+                        f"""
+                        INSERT INTO {table} (id, signals, advice_nl, atoms, embedding, telemetry)
+                        VALUES (%s, %s, %s, %s, %s::vector, %s)
                         ON CONFLICT (id) DO UPDATE SET
-                            context = EXCLUDED.context,
                             signals = EXCLUDED.signals,
                             advice_nl = EXCLUDED.advice_nl,
                             atoms = EXCLUDED.atoms,
                             embedding = EXCLUDED.embedding,
                             telemetry = EXCLUDED.telemetry;
-                    """, (
-                        entry.id,
-                        json.dumps(entry.context),
-                        json.dumps(entry.signals),
-                        json.dumps(entry.advice_nl),
-                        json.dumps([{"name": a.name, "args": a.args} for a in entry.atoms]),
-                        embedding_str,
-                        json.dumps(entry.telemetry),
-                    ))
+                        """,
+                        (
+                            entry.id,
+                            json.dumps(entry.signals),
+                            json.dumps(entry.advice_nl),
+                            json.dumps([{"name": a.name, "args": a.args} for a in entry.atoms]),
+                            embedding_str,
+                            json.dumps(entry.telemetry),
+                        ),
+                    )
                     conn.commit()
             finally:
                 store._put_conn(conn)
 
-            print(f"[{i}/{total}] ✓ {entry.id}")
+            print(f"[{i}/{total}] OK {entry.id}")
             ok += 1
         except Exception as e:
-            print(f"[{i}/{total}] ✗ {entry.id}: {e}")
+            print(f"[{i}/{total}] FAIL {entry.id}: {e}")
             fail += 1
 
     store.close()
-    print(f"\n导入完成：成功 {ok}，失败 {fail}")
+    print(f"\ndone: {ok} ok, {fail} failed")
 
 
 if __name__ == "__main__":
     clear = "--clear" in sys.argv
     args = [a for a in sys.argv[1:] if a != "--clear"]
-    jsonl_path = args[0] if args else "xpu_v1.jsonl"
-    import_jsonl(jsonl_path, clear=clear)
+    if not args:
+        print("usage: python scripts/import_xpu_jsonl.py <jsonl_path> [--clear]", file=sys.stderr)
+        sys.exit(2)
+    import_jsonl(args[0], clear=clear)

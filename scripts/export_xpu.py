@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""
-从 PostgreSQL 导出 XPU 经验到 JSONL 文件。
+"""Export the XPU experience store from PostgreSQL to a JSONL file.
 
-默认增量追加：只导出文件中尚未包含的条目。
-加 --full 则全量覆盖。
+Default: incremental append — only entries whose `id` is not already in the
+output file are written. Pass `--full` to rewrite the file from scratch.
 
-用法:
-  python scripts/export_xpu.py                        # 增量追加到 xpu_v2.jsonl
-  python scripts/export_xpu.py -o backup.jsonl --full # 全量导出到指定文件
+Usage:
+    python scripts/export_xpu.py                           # append to xpu.jsonl
+    python scripts/export_xpu.py -o backup.jsonl --full    # full dump
 """
 
 from __future__ import annotations
@@ -20,21 +19,22 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from src.xpu.xpu_vector_store import XpuVectorStore
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="从 PostgreSQL 导出 XPU 经验到 JSONL")
-    parser.add_argument("-o", "--output", default="xpu_v2.jsonl", help="输出文件路径（默认 xpu_v2.jsonl）")
-    parser.add_argument("--full", action="store_true", help="全量导出（覆盖已有文件），默认增量追加")
+    parser = argparse.ArgumentParser(description="Export XPU experience entries from PostgreSQL to JSONL")
+    parser.add_argument("-o", "--output", default="xpu.jsonl", help="output file path (default: xpu.jsonl)")
+    parser.add_argument("--full", action="store_true", help="full export (overwrite); default is incremental append")
     return parser.parse_args()
 
 
 def load_existing_ids(path: Path) -> set[str]:
-    """读取已有 JSONL 文件中的 ID 集合"""
-    ids = set()
+    """Read existing IDs from the JSONL output file."""
+    ids: set[str] = set()
     if not path.exists():
         return ids
     with open(path, "r", encoding="utf-8") as f:
@@ -46,38 +46,43 @@ def load_existing_ids(path: Path) -> set[str]:
 
 
 def export_from_db(store: XpuVectorStore, exclude_ids: set[str]) -> list[dict]:
-    """从数据库查出需要导出的条目"""
+    """Pull rows from the XPU table, skipping ones already in `exclude_ids`."""
+    table = store._table
     conn = store._get_conn()
     try:
         with conn.cursor() as cur:
             if exclude_ids:
-                cur.execute("""
-                    SELECT id, context, signals, advice_nl, atoms, telemetry
-                    FROM xpu_entries
+                cur.execute(
+                    f"""
+                    SELECT id, signals, advice_nl, atoms, telemetry
+                    FROM {table}
                     WHERE id != ALL(%s)
                     ORDER BY created_at;
-                """, (list(exclude_ids),))
+                    """,
+                    (list(exclude_ids),),
+                )
             else:
-                cur.execute("""
-                    SELECT id, context, signals, advice_nl, atoms, telemetry
-                    FROM xpu_entries
+                cur.execute(
+                    f"""
+                    SELECT id, signals, advice_nl, atoms, telemetry
+                    FROM {table}
                     ORDER BY created_at;
-                """)
+                    """
+                )
             rows = cur.fetchall()
     finally:
         store._put_conn(conn)
 
-    entries = []
-    for row in rows:
-        entries.append({
-            "id": row[0],
-            "context": row[1] or {},
-            "signals": row[2] or {},
-            "advice_nl": row[3] or [],
-            "atoms": row[4] or [],
-            "telemetry": row[5] or {},
-        })
-    return entries
+    return [
+        {
+            "id": r[0],
+            "signals": r[1] or {},
+            "advice_nl": r[2] or [],
+            "atoms": r[3] or [],
+            "telemetry": r[4] or {},
+        }
+        for r in rows
+    ]
 
 
 def main() -> int:
@@ -87,18 +92,18 @@ def main() -> int:
     store = XpuVectorStore()
 
     if args.full:
-        exclude_ids = set()
+        exclude_ids: set[str] = set()
         mode = "w"
     else:
         exclude_ids = load_existing_ids(output)
         mode = "a"
-        print(f"已有 {len(exclude_ids)} 条，增量导出中...")
+        print(f"{len(exclude_ids)} existing entries; appending only new ones...")
 
     entries = export_from_db(store, exclude_ids)
     store.close()
 
     if not entries:
-        print("无新增条目，文件未变更")
+        print("nothing new; file unchanged")
         return 0
 
     with open(output, mode, encoding="utf-8") as f:
@@ -106,7 +111,7 @@ def main() -> int:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
     total = len(exclude_ids) + len(entries) if not args.full else len(entries)
-    print(f"导出 {len(entries)} 条到 {output}（文件共 {total} 条）")
+    print(f"wrote {len(entries)} entries to {output} ({total} total)")
     return 0
 
 
