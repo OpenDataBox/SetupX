@@ -1,0 +1,356 @@
+[
+  {
+    "repo": "beeware/briefcase",
+    "revision": "448b58bcf928ae4e933fa342795785fb3211cd17",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 jaraco.classes（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import jaraco.classes'\n输出: ModuleNotFoundError: No module named 'jaraco'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 jaraco.context（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: pip show jaraco.context\n输出: WARNING: Package(s) not found: jaraco.context"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 jaraco.functools（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: pip show jaraco.functools\n输出: WARNING: Package(s) not found: jaraco.functools"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 more-itertools（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import more_itertools'\n输出: ModuleNotFoundError: No module named 'more_itertools'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 requests-toolbelt（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import requests_toolbelt'\n输出: ModuleNotFoundError: No module named 'more_itertools' (但 requests_toolbelt 同样未安装，基于 pip list 缺失)"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（jaraco.classes未在pyproject.toml的[project.dependencies]中列出，项目核心依赖为空，非Setup Agent失职），指控2 驳回（jaraco.context未在核心依赖中列出），指控3 驳回（jaraco.functools未在核心依赖中列出），指控4 驳回（more-itertools未在核心依赖中列出），指控5 驳回（requests-toolbelt未在核心依赖中列出），综合裁决：所有指控均不成立，因为项目pyproject.toml的[project.dependencies]为空，未要求安装这些包，检察官对项目依赖判断错误。",
+    "envbench_exit_code": 0,
+    "envbench_issues": 2
+  },
+  {
+    "repo": "apiflask/apiflask",
+    "revision": "d71d64a3e4b18ce74129de103e364a321ee33b66",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉",
+    "envbench_exit_code": 0,
+    "envbench_issues": 5
+  },
+  {
+    "repo": "dtmilano/androidviewclient",
+    "revision": "8738d3af40921b861f25780b4a92b5b6d4990af1",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉",
+    "envbench_exit_code": 0,
+    "envbench_issues": 13
+  },
+  {
+    "repo": "ibm/ibmi-bob",
+    "revision": "d741050ea70c32474d58a5f0897ab0056d9a611e",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉",
+    "envbench_exit_code": 0,
+    "envbench_issues": 2
+  },
+  {
+    "repo": "ellmetha/django-machina",
+    "revision": "e34c8ba4f1ba13f6f76dfcc20f276d2affc7c416",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 pillow（来源：pyproject.toml [tool.poetry.dependencies]）",
+        "evidence": "命令: pip show pillow\n输出: WARNING: Package(s) not found: pillow\n命令: python3 -c 'import PIL'\n输出: ModuleNotFoundError: No module named 'PIL'"
+      },
+      {
+        "claim": "Setup Agent 配置的环境导致核心依赖 django-haystack 不可用，因 pkg_resources 模块缺失（来源：pyproject.toml [tool.poetry.dependencies]）",
+        "evidence": "命令: python3 -c 'import haystack'\n输出: ModuleNotFoundError: No module named 'pkg_resources'\n命令: python3 -c 'import pkg_resources'\n输出: ModuleNotFoundError: No module named 'pkg_resources'\n注意：setuptools 已安装但 pkg_resources 不可导入，环境不完整。"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立，验证确认pillow在pyproject.toml核心依赖中，且pip show pillow和import PIL均失败，说明Setup Agent未安装此依赖。指控2成立，验证确认django-haystack在核心依赖中，pkg_resources不可导入，setuptools虽已安装但pkg_resources模块缺失，导致环境不完整，Setup Agent配置失职。综合裁决：有至少一条指控成立，Setup Agent有罪。",
+    "envbench_exit_code": 0,
+    "envbench_issues": 3
+  },
+  {
+    "repo": "intake/intake",
+    "revision": "7cc9d879f2f0de65552681f2055ed1e3367bc6da",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉",
+    "envbench_exit_code": 0,
+    "envbench_issues": 33
+  },
+  {
+    "repo": "ecds/readux",
+    "revision": "3eaf18edb9bcb0858507dcdb9295bc367e1ff8fb",
+    "container_ok": true,
+    "script_ok": false,
+    "prosecute": null,
+    "charges": [],
+    "verdict": null,
+    "reason": "评估异常: Command '['docker', 'exec', '9eef902f1bc6eda8b1e19982226dbb2751f6b5b4029686b0172ba1373a395ebb', 'bash', '-c', \"cd /data/project/ecds__readux@3eaf18edb9bcb0858507dcdb9295bc367e1ff8fb && trap 'env > /tmp/_bootstrap_env.txt' EXIT && source bootstrap_script.sh 2>&1; echo EXIT_CODE=$?\"]' timed out after 600 seconds",
+    "envbench_exit_code": 0,
+    "envbench_issues": 2
+  },
+  {
+    "repo": "jackdewinter/pymarkdown",
+    "revision": "446fbbf251f5daa150b967b90c72216aeddb73fc",
+    "container_ok": true,
+    "script_ok": false,
+    "prosecute": null,
+    "charges": [],
+    "verdict": null,
+    "reason": "评估异常: Command '['docker', 'exec', '7771a897b191e5d9c45cb04d242eb20387a8ed95c0949630e0b1b2da34df81b8', 'bash', '-c', \"cd /data/project/jackdewinter__pymarkdown@446fbbf251f5daa150b967b90c72216aeddb73fc && trap 'env > /tmp/_bootstrap_env.txt' EXIT && source bootstrap_script.sh 2>&1; echo EXIT_CODE=$?\"]' timed out after 600 seconds",
+    "envbench_exit_code": 1,
+    "envbench_issues": 0
+  },
+  {
+    "repo": "jacebrowning/memegen",
+    "revision": "40d58684d5eb073dbb1ad147a70ab31ca09b4c6f",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉",
+    "envbench_exit_code": 0,
+    "envbench_issues": 0
+  },
+  {
+    "repo": "jazzband/tablib",
+    "revision": "2121267b45fe54b47b9dd4c74c203bf82eff8b97",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉",
+    "envbench_exit_code": 0,
+    "envbench_issues": 0
+  },
+  {
+    "repo": "microsoftgraph/msgraph-sdk-python-core",
+    "revision": "e36c17424c9d443bdfeafc32f32682529ce25f95",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉",
+    "envbench_exit_code": 0,
+    "envbench_issues": 3
+  },
+  {
+    "repo": "jaraco/keyring",
+    "revision": "afe0abd3165da8fd68d2812f483ba429008442d5",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉",
+    "envbench_exit_code": 0,
+    "envbench_issues": 30
+  },
+  {
+    "repo": "mpmath/mpmath",
+    "revision": "ee1a8102665a2fba0faba6c2c0f0a064de92b522",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 setuptools_scm（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: cd /data/project/mpmath__mpmath@ee1a8102665a2fba0faba6c2c0f0a064de92b522 && python3 -c 'import setuptools_scm'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n    import setuptools_scm; print('Import successful')\n                       ^^^^^^^^^^^^^^^^^^^^^\nModuleNotFoundError: No module named 'setuptools_scm'"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（原因：setuptools_scm是构建依赖，位于pyproject.toml的[build-system]中，非[project.dependencies]中的核心运行时依赖；检察官对项目类型判断错误，Setup Agent可能不负责安装构建依赖）。综合裁决：所有指控均被驳回。",
+    "envbench_exit_code": 0,
+    "envbench_issues": 0
+  },
+  {
+    "repo": "piccolo-orm/piccolo",
+    "revision": "17c0a8859c19da48b33a19bb5a15d44d91bb6278",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉",
+    "envbench_exit_code": 0,
+    "envbench_issues": 3
+  },
+  {
+    "repo": "online-ml/river",
+    "revision": "6995f1522a9136fd3982890afac5c4a178e4cd57",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉",
+    "envbench_exit_code": 0,
+    "envbench_issues": 12
+  },
+  {
+    "repo": "nixtla/neuralforecast",
+    "revision": "90b6fd06dc59fa3f320c57f361d4ca8379aa6be7",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉",
+    "envbench_exit_code": 1,
+    "envbench_issues": 0
+  },
+  {
+    "repo": "python-control/python-control",
+    "revision": "dbc998dedf8e18dcdcc15acf15303f22adf9368f",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉",
+    "envbench_exit_code": 1,
+    "envbench_issues": 0
+  },
+  {
+    "repo": "python-poetry/poetry",
+    "revision": "5bab98c9500f1050c6bb6adfb55580a23173f18d",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉",
+    "envbench_exit_code": 0,
+    "envbench_issues": 15
+  },
+  {
+    "repo": "skrub-data/skrub",
+    "revision": "0d69d97129aa638167e1e721686acb066daed007",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装兼容版本的核心依赖 scikit-learn（来源：pyproject.toml [project.dependencies] 中声明 scikit-learn>=1.2.1），导致运行时崩溃",
+        "evidence": "依赖声明证据：在 pyproject.toml 的 dependencies 字段中列出 'scikit-learn>=1.2.1'。\n取证命令和原始输出：命令: python3 -c \"import sys; sys.path.insert(0, '.'); import skrub\"\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n    import sys; sys.path.insert(0, '.'); import skrub; print('skrub import successful'); print(dir(skrub)[:5])\n                                         ^^^^^^^^^^^^\n  File \"/data/project/skrub-data__skrub@0d69d97129aa638167e1e721686acb066daed007/skrub/__init__.py\", line 12, in <module>\n    from ._interpolation_joiner import InterpolationJoiner\n  File \"/data/project/skrub-data__skrub@0d69d97129aa638167e1e721686acb066daed007/skrub/_interpolation_joiner.py\", line 11, in <module>\n    from sklearn.utils._tags import _safe_tags\nImportError: cannot import name '_safe_tags' from 'sklearn.utils._tags' (/opt/conda/lib/python3.13/site-packages/sklearn/utils/_tags.py)\n\n附加验证：scikit-learn 版本为 1.8.0，但模块中缺少 _safe_tags 属性，表明版本不兼容。"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立，因为验证确认pyproject.toml声明scikit-learn>=1.2.1为核心依赖，但当前安装的scikit-learn版本为1.8.0，缺少_safe_tags属性，导致导入skrub失败，与检察官证据一致。这表明Setup Agent未安装兼容版本的核心依赖，导致运行时崩溃。综合裁决，有至少一条指控成立，因此guilty。",
+    "envbench_exit_code": 0,
+    "envbench_issues": 56
+  },
+  {
+    "repo": "sublimelinter/sublimelinter",
+    "revision": "621ba9bf8d4ed4084902b8840bb1ae7d31e6a8fb",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 'sublime' 和 'sublime_plugin'（来源：代码导入，如 panel_view.py 中 'import sublime' 和 'import sublime_plugin'）",
+        "evidence": "命令: python3 -c \"import sublime; import sublime_plugin; print('OK')\"\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'sublime'"
+      },
+      {
+        "claim": "Setup Agent 未安装测试依赖 'unittesting'（来源：测试文件如 test_sublime_linter_entrypoint.py 中 'from unittesting import DeferrableTestCase'）",
+        "evidence": "命令: python3 -m unittest discover -s tests -v 2>&1 | grep -A5 \"ModuleNotFoundError: No module named 'unittesting'\"\n输出: 在测试运行中显示 ModuleNotFoundError: No module named 'unittesting'"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（sublime和sublime_plugin是Sublime Text API模块，不是Python包依赖，Setup Agent无责任安装），指控2 待验证。",
+    "envbench_exit_code": 0,
+    "envbench_issues": 99
+  },
+  {
+    "repo": "uriyyo/fastapi-pagination",
+    "revision": "e00623920b1cc8b3d20eac2a96fb81343091569a",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉",
+    "envbench_exit_code": 0,
+    "envbench_issues": 350
+  },
+  {
+    "repo": "qiboteam/qibocal",
+    "revision": "0625d904216ddbcfe5a12b46b31e84f04de9285e",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉",
+    "envbench_exit_code": 0,
+    "envbench_issues": 6
+  },
+  {
+    "repo": "zostera/django-bootstrap3",
+    "revision": "a6565be14ed0edff98b84d2874dc709cbecb1118",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉",
+    "envbench_exit_code": 0,
+    "envbench_issues": 0
+  },
+  {
+    "repo": "yourlabs/django-autocomplete-light",
+    "revision": "45a9ff6e95e58348b90b3c1f01f01cb6ca10b4d3",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉",
+    "envbench_exit_code": 0,
+    "envbench_issues": 14
+  },
+  {
+    "repo": "sassoftware/python-sasctl",
+    "revision": "ebd0a63804ee752404e118762ab4bceb67705641",
+    "container_ok": true,
+    "script_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 'semver'（来源：setup.py install_requires）",
+        "evidence": "命令: python3 -c 'import semver'\n输出: ModuleNotFoundError: No module named 'semver'\n命令: pip show semver\n输出: WARNING: Package(s) not found: semver"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（原因：'semver' 不在 setup.py 的 install_requires 中，因此不是核心依赖，Setup Agent 没有义务安装它），综合裁决：所有指控均不成立。",
+    "envbench_exit_code": 0,
+    "envbench_issues": 34
+  }
+]

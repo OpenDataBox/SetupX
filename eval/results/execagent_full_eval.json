@@ -1,0 +1,993 @@
+[
+  {
+    "repo": "supervision",
+    "batch": "top50_xpu_v2_b001",
+    "repo_url": "https://github.com/roboflow/supervision",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 numpy（推断为 supervision 项目的核心依赖，基于常见计算机视觉库需求）",
+        "evidence": "命令: python3 -c 'import numpy'\n输出: ModuleNotFoundError: No module named 'numpy'"
+      },
+      {
+        "claim": "Setup Agent 未安装测试运行工具 pytest，导致无法运行测试套件",
+        "evidence": "命令: python3 -m pytest --tb=line -q --timeout=60\n输出: /usr/local/bin/python3: No module named pytest"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（原因：项目 supervision 文件夹内无 Python 文件或依赖配置，SETUP_AND_INSTALL.sh 显示使用 uv 安装依赖，但 uv 未安装成功，numpy 可能不是核心依赖或项目非 Python 项目，检察官推断可能错误），指控2 驳回（原因：pytest 未安装，但项目可能未要求 pytest 或依赖安装失败，且检察官未提供证据证明 pytest 是核心依赖或项目有测试套件），综合裁决：所有指控均被驳回。"
+  },
+  {
+    "repo": "cookiecutter",
+    "batch": "top50_xpu_v2_b001",
+    "repo_url": "https://github.com/cookiecutter/cookiecutter",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "kedro",
+    "batch": "top50_xpu_v2_b001",
+    "repo_url": "https://github.com/kedro-org/kedro",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 Kedro（来源：SETUP_AND_INSTALL.sh 中的 'uv pip install --system -e \".[test]\"' 命令）",
+        "evidence": "命令: python3 -c 'import kedro'\n输出: ModuleNotFoundError: No module named 'kedro'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 pytest（来源：SETUP_AND_INSTALL.sh 中的测试运行依赖）",
+        "evidence": "命令: python3 -c 'import pytest'\n输出: ModuleNotFoundError: No module named 'pytest'"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（原因：项目文件缺失，安装命令可能因项目未克隆而失败，非 Setup Agent 失职），指控2 驳回（原因：同指控1，依赖未安装是由于项目缺失，而非 Setup Agent 未执行安装）。综合裁决：所有指控均被驳回，因为失败原因可能是外部因素（如项目未正确设置），而非 Setup Agent 的职责失职。"
+  },
+  {
+    "repo": "pip",
+    "batch": "top50_xpu_v2_b001",
+    "repo_url": "https://github.com/pypa/pip",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "mopidy",
+    "batch": "top50_xpu_v2_b001",
+    "repo_url": "https://github.com/mopidy/mopidy",
+    "execagent_status": "SUCCESS",
+    "build_ok": false,
+    "install_ok": false,
+    "prosecute": null,
+    "charges": [],
+    "verdict": null,
+    "reason": "Docker 构建失败"
+  },
+  {
+    "repo": "pip-tools",
+    "batch": "top50_xpu_v2_b002",
+    "repo_url": "https://github.com/jazzband/pip-tools",
+    "execagent_status": "SUCCESS",
+    "build_ok": false,
+    "install_ok": false,
+    "prosecute": null,
+    "charges": [],
+    "verdict": null,
+    "reason": "Docker 构建失败"
+  },
+  {
+    "repo": "featuretools",
+    "batch": "top50_xpu_v2_b002",
+    "repo_url": "https://github.com/alteryx/featuretools",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 pkg_resources（作为 setuptools 的一部分），导致 woodwork 和 composeml 等包导入失败。来源：pyproject.toml [project.optional-dependencies.test] 包含 'composeml >= 0.8.0'，且 woodwork 是 featuretools 的必需依赖。",
+        "evidence": "命令: python3 -c \"import pkg_resources\"\n输出: ModuleNotFoundError: No module named 'pkg_resources'\n命令: python3 -m pytest --tb=line -q --timeout=60 2>&1 | tail -60\n输出: ImportError while loading conftest ... ModuleNotFoundError: No module named 'pkg_resources'"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（原因：pkg_resources是setuptools的一部分，setuptools在build-system.requires中作为构建依赖，但未安装到虚拟环境中；woodwork和composeml在[project.optional-dependencies.test]中，属于可选测试依赖，非核心依赖；检察官的验证基于测试环境，但Setup Agent可能未安装测试依赖，这属于外部服务或测试逻辑问题，非Setup Agent失职）。综合裁决：所有指控均被驳回。"
+  },
+  {
+    "repo": "umap",
+    "batch": "top50_xpu_v2_b002",
+    "repo_url": "https://github.com/lmcinnes/umap",
+    "execagent_status": "SUCCESS",
+    "build_ok": false,
+    "install_ok": false,
+    "prosecute": null,
+    "charges": [],
+    "verdict": null,
+    "reason": "Docker 构建失败"
+  },
+  {
+    "repo": "trafilatura",
+    "batch": "top50_xpu_v2_b003",
+    "repo_url": "https://github.com/adbar/trafilatura",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 requests（trafilatura 项目通常依赖 requests 进行 HTTP 请求，基于常见依赖声明）",
+        "evidence": "命令: python3 -c 'import requests'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'requests'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 lxml（trafilatura 项目通常依赖 lxml 进行 HTML 解析，基于常见依赖声明）",
+        "evidence": "命令: python3 -c 'import lxml'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'lxml'"
+      },
+      {
+        "claim": "Setup Agent 未正确安装 trafilatura 项目，导致 /app/trafilatura 为空目录，仅作为命名空间包，可能缺少实际代码和依赖",
+        "evidence": "命令: ls -la /app/trafilatura\n输出: total 8\ndrwxr-xr-x 2 root root 4096 Mar 18 16:18 .\ndrwxr-xr-x 1 root root 4096 Mar 18 16:18 .."
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": ""
+  },
+  {
+    "repo": "tortoise-orm",
+    "batch": "top50_xpu_v2_b002",
+    "repo_url": "https://github.com/tortoise/tortoise-orm",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "giskard",
+    "batch": "top50_xpu_v2_b003",
+    "repo_url": "https://github.com/giskard-ai/giskard",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "plotnine",
+    "batch": "top50_xpu_v2_b003",
+    "repo_url": "https://github.com/has2k1/plotnine",
+    "execagent_status": "SUCCESS",
+    "build_ok": false,
+    "install_ok": false,
+    "prosecute": null,
+    "charges": [],
+    "verdict": null,
+    "reason": "Docker 构建失败"
+  },
+  {
+    "repo": "tablib",
+    "batch": "top50_xpu_v2_b003",
+    "repo_url": "https://github.com/jazzband/tablib",
+    "execagent_status": "SUCCESS",
+    "build_ok": false,
+    "install_ok": false,
+    "prosecute": null,
+    "charges": [],
+    "verdict": null,
+    "reason": "Docker 构建失败"
+  },
+  {
+    "repo": "plugin.video.netflix",
+    "batch": "top50_xpu_v2_b004",
+    "repo_url": "https://github.com/castagnait/plugin.video.netflix",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent未安装核心依赖pytest（来源：SETUP_AND_INSTALL.sh脚本中'pip install --no-cache-dir -r requirements.txt'和'Verify installations'部分提到pytest）",
+        "evidence": "命令: python3 -c 'import pytest'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'pytest'"
+      },
+      {
+        "claim": "Setup Agent未安装核心依赖tox（来源：SETUP_AND_INSTALL.sh脚本中'Run test suite with tox'和'Verify installations'部分提到tox）",
+        "evidence": "命令: python3 -c 'import tox'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'tox'"
+      },
+      {
+        "claim": "Setup Agent未安装核心依赖flake8（来源：SETUP_AND_INSTALL.sh脚本中'Running linting checks'和'Verify installations'部分提到flake8）",
+        "evidence": "命令: python3 -c 'import flake8'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'flake8'"
+      },
+      {
+        "claim": "Setup Agent未安装核心依赖pylint（来源：SETUP_AND_INSTALL.sh脚本中'Verify installations'部分提到pylint）",
+        "evidence": "命令: python3 -c 'import pylint'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'pylint'"
+      },
+      {
+        "claim": "Setup Agent未安装核心依赖Kodistubs（来源：SETUP_AND_INSTALL.sh脚本中'Verify installations'部分提到Kodistubs）",
+        "evidence": "命令: python3 -c 'import Kodistubs'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'Kodistubs'"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1驳回（requirements.txt不存在，pytest可能不是核心依赖，检察官错误判断项目类型），指控2驳回（无项目配置文件，tox可能不是核心依赖），指控3驳回（flake8用于linting检查，是可选工具非核心依赖），指控4驳回（pylint仅用于验证，非核心依赖），指控5驳回（Kodistubs仅用于验证，非核心依赖）。综合裁决：所有指控均不成立，Setup Agent未失职。"
+  },
+  {
+    "repo": "dj-stripe",
+    "batch": "top50_xpu_v2_b005",
+    "repo_url": "https://github.com/dj-stripe/dj-stripe",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未正确配置项目环境，导致项目文件缺失，无法安装核心依赖（来源：脚本假设项目在/app/dj-stripe，但该目录为空）",
+        "evidence": "命令: ls -la /app/dj-stripe/\n输出: total 8\ndrwxr-xr-x 2 root root 4096 Mar 19 00:11 .\ndrwxr-xr-x 1 root root 4096 Mar 19 00:11 ..\n命令: find /app -name 'pyproject.toml' -o -name 'setup.py' -o -name 'setup.cfg' -o -name 'requirements.txt' 2>/dev/null\n输出: (空)\n命令: pip list\n输出: Package    Version\n---------- -------\npip        24.0\nsetuptools 79.0.1\nwheel      0.45.1\n这表明项目依赖未安装，环境不满足测试要求。"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（原因：检察官的指控基于项目文件缺失，但验证结果显示 /app/dj-stripe 目录为空且找不到项目配置文件，这可能是项目本身未正确放置或 Setup Agent 未处理项目文件，但检察官未提供证据证明 Setup Agent 失职导致此问题；此外，检察官未验证依赖安装失败的具体原因，如网络或脚本错误，且环境快照显示无虚拟环境，但检察官未指定使用项目特定环境）。综合裁决，所有指控均被驳回。"
+  },
+  {
+    "repo": "py-evm",
+    "batch": "top50_xpu_v2_b004",
+    "repo_url": "https://github.com/ethereum/py-evm",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "great-tables",
+    "batch": "top50_xpu_v2_b004",
+    "repo_url": "https://github.com/posit-dev/great-tables",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "skrub",
+    "batch": "top50_xpu_v2_b005",
+    "repo_url": "https://github.com/skrub-data/skrub",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 numpy（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import numpy'\n输出: ModuleNotFoundError: No module named 'numpy'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 scipy（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import scipy'\n输出: ModuleNotFoundError: No module named 'scipy'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 pandas（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import pandas'\n输出: ModuleNotFoundError: No module named 'pandas' (从组合导入失败推断)"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 scikit-learn（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import sklearn'\n输出: ModuleNotFoundError: No module named 'sklearn'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 pytest（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -m pytest\n输出: /usr/local/bin/python3: No module named pytest"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（pyproject.toml中未找到numpy依赖，可能依赖在可选extras中或检察官误判），指控2 驳回（pyproject.toml中未找到scipy依赖），指控3 驳回（pyproject.toml中未找到pandas依赖），指控4 驳回（pyproject.toml中未找到scikit-learn依赖），指控5 驳回（pyproject.toml中未找到pytest依赖）。综合裁决：所有指控均因依赖未在pyproject.toml的[project]部分找到而被驳回，Setup Agent可能未失职。"
+  },
+  {
+    "repo": "proselint",
+    "batch": "top50_xpu_v2_b003",
+    "repo_url": "https://github.com/amperser/proselint",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 配置的环境无法执行基本命令，导致无法验证核心依赖和运行测试（来源：容器环境快照和命令执行失败）",
+        "evidence": "命令: /bin/ls -la / 和其他 find 命令\n输出: bash: line 1: cd: /workspace: No such file or directory (exit_code=1, stdout 和 stderr 为空)，表明环境处于损坏状态，无法进行任何调查。"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（原因：验证确认命令失败，但失败原因是 /workspace 目录不存在，这可能是测试环境的外部问题，而非 Setup Agent 配置的环境损坏；检察官的证据显示命令失败，但未证明是 Setup Agent 失职导致环境无法执行任何基本命令）。综合裁决：所有指控均被驳回。"
+  },
+  {
+    "repo": "cantools",
+    "batch": "top50_xpu_v2_b004",
+    "repo_url": "https://github.com/cantools/cantools",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent未安装核心依赖cantools（来源：项目pyproject.toml [project.dependencies]，基于Setup Agent轨迹分析）",
+        "evidence": "命令: pip list 2>&1 | grep -i cantools\n输出: cantools not found in pip list\n补充: Python导入失败，命令: python3 -c 'import cantools' 2>&1\n输出: (stderr显示环境错误，但pip list确认包缺失)"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "指控1：检察官声称Setup Agent未安装核心依赖cantools，证据是pip list中找不到cantools且Python导入失败。我的验证尝试执行pip list和Python导入命令，但所有命令都失败，提示'/workspace: No such file or directory'，这表明环境存在严重错误，如工作目录缺失或路径设置问题。根据判定标准，失败原因是外部服务/网络/测试逻辑bug或环境配置错误，非Setup Agent失职，因此指控应被驳回。"
+  },
+  {
+    "repo": "hacs_waste_collection_schedule",
+    "batch": "top50_xpu_v2_b005",
+    "repo_url": "https://github.com/mampfes/hacs_waste_collection_schedule",
+    "execagent_status": "FAILED",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "mteb",
+    "batch": "top50_xpu_v2_b004",
+    "repo_url": "https://github.com/embeddings-benchmark/mteb",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 pytrec-eval-terrier（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: cd /mteb && uv run --no-sync python -c 'import pytrec_eval_terrier'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'pytrec_eval_terrier'"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（原因：依赖pytrec-eval-terrier不在pyproject.toml的[project.dependencies]中，验证显示文件内无此依赖，检察官对项目依赖判断错误，Setup Agent无需安装非核心依赖），综合裁决：所有指控均被驳回。"
+  },
+  {
+    "repo": "poetry",
+    "batch": "top50_xpu_v2_b001",
+    "repo_url": "https://github.com/python-poetry/poetry",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 pytest（推断为 Poetry 项目的测试依赖，基于测试输出中的 pytest Version: 9.0.2）",
+        "evidence": "命令: python3 -c 'import pytest; print(pytest.__version__)'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'pytest'"
+      },
+      {
+        "claim": "Setup Agent 未提供项目代码，导致无法运行测试套件（工作目录 /app/poetry 为空）",
+        "evidence": "命令: ls -la /app/poetry\n输出: total 8\ndrwxr-xr-x 2 root root 4096 Mar 21 13:35 .\ndrwxr-xr-x 1 root root 4096 Mar 21 13:35 .."
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": ""
+  },
+  {
+    "repo": "litgpt",
+    "batch": "top50_xpu_v2_b001",
+    "repo_url": "https://github.com/Lightning-AI/litgpt",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 huggingface-hub（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import huggingface_hub'\n输出: ModuleNotFoundError: No module named 'huggingface_hub'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 jsonargparse（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import jsonargparse'\n输出: ModuleNotFoundError: No module named 'jsonargparse'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 lightning（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import lightning'\n输出: ModuleNotFoundError: No module named 'lightning'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 psutil（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import psutil'\n输出: ModuleNotFoundError: No module named 'psutil'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 safetensors（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import safetensors'\n输出: ModuleNotFoundError: No module named 'safetensors'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 tokenizers（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import tokenizers'\n输出: ModuleNotFoundError: No module named 'tokenizers'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 torch（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import torch'\n输出: ModuleNotFoundError: No module named 'torch'"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（验证确认huggingface-hub不可导入），指控2成立（验证确认jsonargparse不可导入），指控3成立（验证确认lightning不可导入），指控4成立（验证确认psutil不可导入），指控5成立（验证确认safetensors不可导入），指控6成立（验证确认tokenizers不可导入），指控7成立（验证确认torch不可导入）。所有依赖均在pyproject.toml的[project.dependencies]中，是核心依赖，且Setup Agent未安装它们。综合裁决：Setup Agent有罪。"
+  },
+  {
+    "repo": "datasets",
+    "batch": "top50_xpu_v2_b001",
+    "repo_url": "https://github.com/huggingface/datasets",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 datasets（来源：setup.py install_requires）",
+        "evidence": "命令: python3 -c 'import datasets'\n输出: ModuleNotFoundError: No module named 'datasets'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 numpy（来源：setup.py install_requires）",
+        "evidence": "命令: python3 -c 'import numpy'\n输出: ModuleNotFoundError: No module named 'numpy'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 pyarrow（来源：setup.py install_requires）",
+        "evidence": "命令: pip list | grep pyarrow\n输出: (无输出，表示未安装)"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 dill（来源：setup.py install_requires）",
+        "evidence": "命令: pip list | grep dill\n输出: (无输出，表示未安装)"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 pandas（来源：setup.py install_requires）",
+        "evidence": "命令: pip list | grep pandas\n输出: (无输出，表示未安装)"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 requests（来源：setup.py install_requires）",
+        "evidence": "命令: pip list | grep requests\n输出: (无输出，表示未安装)"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 httpx（来源：setup.py install_requires）",
+        "evidence": "命令: pip list | grep httpx\n输出: (无输出，表示未安装)"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 tqdm（来源：setup.py install_requires）",
+        "evidence": "命令: pip list | grep tqdm\n输出: (无输出，表示未安装)"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 xxhash（来源：setup.py install_requires）",
+        "evidence": "命令: pip list | grep xxhash\n输出: (无输出，表示未安装)"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 multiprocess（来源：setup.py install_requires）",
+        "evidence": "命令: pip list | grep multiprocess\n输出: (无输出，表示未安装)"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 fsspec（来源：setup.py install_requires）",
+        "evidence": "命令: pip list | grep fsspec\n输出: (无输出，表示未安装)"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 huggingface-hub（来源：setup.py install_requires）",
+        "evidence": "命令: pip list | grep huggingface-hub\n输出: (无输出，表示未安装)"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 pyyaml（来源：setup.py install_requires）",
+        "evidence": "命令: pip list | grep PyYAML\n输出: (无输出，表示未安装)"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（验证确认依赖 datasets 不可导入），指控2成立（验证确认依赖 numpy 不可导入），指控3成立（验证确认依赖 pyarrow 未安装），指控4成立（验证确认依赖 dill 未安装），指控5成立（验证确认依赖 pandas 未安装），指控6成立（验证确认依赖 requests 未安装），指控7成立（验证确认依赖 httpx 未安装），指控8成立（验证确认依赖 tqdm 未安装），指控9成立（验证确认依赖 xxhash 未安装），指控10成立（验证确认依赖 multiprocess 未安装），指控11成立（验证确认依赖 fsspec 未安装），指控12成立（验证确认依赖 huggingface-hub 未安装），指控13成立（验证确认依赖 pyyaml 未安装）。所有指控均验证成立，综合裁决 Setup Agent 有罪。"
+  },
+  {
+    "repo": "platformio-core",
+    "batch": "top50_xpu_v2_b001",
+    "repo_url": "https://github.com/platformio/platformio-core",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 platformio（来源：项目应为 platformio-core，依赖 platformio 包）",
+        "evidence": "命令: python3 -c 'import platformio'\n输出: ModuleNotFoundError: No module named 'platformio'"
+      },
+      {
+        "claim": "Setup Agent 未正确配置项目目录 /app/platformio-core，目录为空，缺少项目文件如 pyproject.toml、setup.py 等",
+        "evidence": "命令: ls -la /app/platformio-core\n输出: total 8\ndrwxr-xr-x 2 root root 4096 Mar 21 13:36 .\ndrwxr-xr-x 1 root root 4096 Mar 21 13:36 .."
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（验证确认依赖 platformio 不可导入，ModuleNotFoundError），指控2成立（验证确认目录为空，缺少项目文件如 pyproject.toml、setup.py）。综合裁决：Setup Agent 未安装核心依赖且未正确配置项目目录，有罪。"
+  },
+  {
+    "repo": "autograd",
+    "batch": "top50_xpu_v2_b002",
+    "repo_url": "https://github.com/hips/autograd",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未正确配置项目环境，导致项目目录和标记文件缺失，无法进行依赖验证和测试运行",
+        "evidence": "命令: find / -type f -name 'pyproject.toml' -o -name 'setup.py' -o -name 'requirements.txt' 2>/dev/null | head -10\n输出: /usr/lib/python3.13/test/libregrtest/setup.py\n命令: ls -la /workspace 2>/dev/null\n输出: exit_code=2 (目录不存在)\n命令: pip list 2>&1 | head -20\n输出: 只显示基本包，无项目特定依赖"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（验证确认项目目录/workspace不存在，且系统中无项目特定依赖文件如pyproject.toml、setup.py、requirements.txt，导致无法进行依赖验证和测试运行）。综合裁决：有至少一条指控成立，Setup Agent未正确配置项目环境。"
+  },
+  {
+    "repo": "trax",
+    "batch": "top50_xpu_v2_b002",
+    "repo_url": "https://github.com/google/trax",
+    "execagent_status": "FAILED",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未提供项目文件或正确配置工作目录，导致无法识别项目类型和运行测试",
+        "evidence": "命令: find / -type f -name 'pyproject.toml' -o -name 'setup.py' -o -name 'requirements.txt' -o -name 'CMakeLists.txt' -o -name 'Makefile' -o -name 'pom.xml' -o -name 'package.json' 2>/dev/null | head -20\n输出: (空)\n命令: find / -type f -name '*.py' -o -name '*.java' -o -name '*.js' -o -name '*.c' -o -name '*.cpp' 2>/dev/null | head -10\n输出: /usr/share/apport/package-hooks/source_shadow.py ... (仅系统文件)"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（原因：验证确认 /app 目录中确实没有项目文件或源代码文件，但检察官的指控是基于 Setup Agent 未提供项目文件或正确配置工作目录。从环境快照看，工作目录是 /app，且没有虚拟环境或项目标记文件，但检察官的命令是全局查找，可能包括系统文件。我的验证专注于 /app 目录，结果与检察官一致（空输出），但这表明项目目录为空或未初始化，而非 Setup Agent 失职。Setup Agent 可能已正确设置工作目录，但项目本身没有文件，这可能是项目状态问题或外部因素，而非 Setup Agent 的配置错误。因此，指控不成立）。综合裁决：所有指控均被驳回。"
+  },
+  {
+    "repo": "lark",
+    "batch": "top50_xpu_v2_b002",
+    "repo_url": "https://github.com/lark-parser/lark",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未将项目代码放入容器中，导致环境无法运行测试",
+        "evidence": "命令: ls -la /app/lark\n输出: total 8\ndrwxr-xr-x 2 root root 4096 Mar 21 12:39 .\ndrwxr-xr-x 3 root root 4096 Mar 21 12:39 ..\n\n命令: find / -name '*.py' -o -name '*.c' -o -name '*.java' -o -name '*.js' 2>/dev/null | head -20\n输出: 仅显示系统文件，无用户项目文件"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立，因为验证确认/app/lark目录为空，且搜索整个容器仅发现系统Python文件，无用户项目文件，导致环境无法运行测试。综合裁决：有至少一条指控成立，因此guilty。"
+  },
+  {
+    "repo": "luigi",
+    "batch": "top50_xpu_v2_b001",
+    "repo_url": "https://github.com/spotify/luigi",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 python-dateutil（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import dateutil'\n输出: ModuleNotFoundError: No module named 'dateutil'\n命令: pip show python-dateutil\n输出: WARNING: Package(s) not found: python-dateutil"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 tenacity（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import tenacity'\n输出: ModuleNotFoundError: No module named 'tenacity'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 tornado（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import tornado'\n输出: ModuleNotFoundError: No module named 'tornado'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 python-daemon（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import daemon'\n输出: ModuleNotFoundError: No module named 'daemon'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 typing-extensions（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import typing_extensions'\n输出: ModuleNotFoundError: No module named 'typing_extensions'"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（python-dateutil在pyproject.toml的[project.dependencies]中，导入失败），指控2成立（tenacity在pyproject.toml的[project.dependencies]中，导入失败），指控3成立（tornado在pyproject.toml的[project.dependencies]中，导入失败），指控4成立（python-daemon在pyproject.toml的[project.dependencies]中，导入失败），指控5成立（typing-extensions在pyproject.toml的[project.dependencies]中，导入失败）。所有指控均验证确认Setup Agent未安装核心依赖，综合裁决guilty。"
+  },
+  {
+    "repo": "guardrails",
+    "batch": "top50_xpu_v2_b002",
+    "repo_url": "https://github.com/guardrails-ai/guardrails",
+    "execagent_status": "FAILED",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 Python（来源：项目 guardrails-ai 是一个 Python 项目，需要 Python 解释器来运行）",
+        "evidence": "命令: which python python2 python3\n输出: No Python found\n命令: python3 --version\n输出: bash: line 1: python3: command not found"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（验证确认Python解释器未安装，which命令无输出，python3命令未找到），综合裁决Setup Agent失职，未安装核心依赖Python。"
+  },
+  {
+    "repo": "nonebot2",
+    "batch": "top50_xpu_v2_b002",
+    "repo_url": "https://github.com/nonebot/nonebot2",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未提供项目代码，导致无法运行测试（来源：项目目录 /app/nonebot2 为空）",
+        "evidence": "命令: ls -la /app/nonebot2\n输出: total 8\ndrwxr-xr-x 2 root root 4096 Mar 21 13:42 .\ndrwxr-xr-x 3 root root 4096 Mar 21 13:42 .."
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1 成立（验证确认目录 /app/nonebot2 为空，没有项目代码，这可能导致无法运行测试，且环境检查未发现项目标记或虚拟环境，Setup Agent 可能未正确设置项目）。综合裁决：有至少一条指控成立。"
+  },
+  {
+    "repo": "river",
+    "batch": "top50_xpu_v2_b002",
+    "repo_url": "https://github.com/online-ml/river",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 scipy（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: cd /app/river && python3 -c 'import scipy'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n    import scipy; import pandas; import numpy; print('All core dependencies imported successfully')\n    ^^^^^^^^^^^^\nModuleNotFoundError: No module named 'scipy'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 pandas（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: cd /app/river && python3 -c 'import pandas'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n    import pandas; import numpy; print('pandas and numpy imported successfully')\n    ^^^^^^^^^^^^^\nModuleNotFoundError: No module named 'pandas'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 numpy（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: cd /app/river && python3 -c 'import numpy'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n    import numpy; print('numpy imported successfully')\n    ^^^^^^^^^^^^\nModuleNotFoundError: No module named 'numpy'"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（验证确认scipy在pyproject.toml的[project.dependencies]中，且导入失败），指控2成立（验证确认pandas在pyproject.toml的[project.dependencies]中，且导入失败），指控3成立（验证确认numpy在pyproject.toml的[project.dependencies]中，且导入失败），综合裁决有≥1条指控成立。"
+  },
+  {
+    "repo": "molecule",
+    "batch": "top50_xpu_v2_b003",
+    "repo_url": "https://github.com/ansible/molecule",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 ansible-compat（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import ansible_compat'\n输出: ModuleNotFoundError: No module named 'ansible_compat'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 ansible-core（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import ansible'\n输出: ModuleNotFoundError: No module named 'ansible'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 click（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import click'\n输出: ModuleNotFoundError: No module named 'click'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 enrich（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import enrich'\n输出: ModuleNotFoundError: No module named 'enrich'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 jinja2（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import jinja2'\n输出: ModuleNotFoundError: No module named 'jinja2'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 jsonschema（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import jsonschema'\n输出: ModuleNotFoundError: No module named 'jsonschema'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 packaging（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import packaging'\n输出: ModuleNotFoundError: No module named 'packaging'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 pluggy（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import pluggy'\n输出: ModuleNotFoundError: No module named 'pluggy'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 pyyaml（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import yaml'\n输出: ModuleNotFoundError: No module named 'yaml'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 rich（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import rich'\n输出: ModuleNotFoundError: No module named 'rich'"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（ansible-compat 未在 [project.dependencies] 中列出，可能不是核心依赖），指控2 驳回（ansible-core 未在 [project.dependencies] 中列出，导入失败但非核心依赖），指控3 驳回（click 未在 [project.dependencies] 中列出），指控4 驳回（enrich 未在 [project.dependencies] 中列出），指控5 驳回（jinja2 未在 [project.dependencies] 中列出），指控6 驳回（jsonschema 未在 [project.dependencies] 中列出），指控7 驳回（packaging 未在 [project.dependencies] 中列出），指控8 驳回（pluggy 未在 [project.dependencies] 中列出），指控9 驳回（pyyaml 未在 [project.dependencies] 中列出），指控10 驳回（rich 未在 [project.dependencies] 中列出）。综合裁决：所有指控均被驳回，因为检察官对项目依赖判断错误，依赖未在核心依赖列表中，Setup Agent 无失职。"
+  },
+  {
+    "repo": "neuralforecast",
+    "batch": "top50_xpu_v2_b003",
+    "repo_url": "https://github.com/nixtla/neuralforecast",
+    "execagent_status": "FAILED",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未将项目代码复制到容器中，导致无法运行测试或验证核心依赖（来源：Setup Agent 执行轨迹中提到的 neuralforecast 项目）",
+        "evidence": "命令: find / -type f -name '*.py' 2>/dev/null | head -10\n输出: 只显示系统 Python 文件，无项目相关文件\n命令: python3 -c \"import neuralforecast\" 2>&1\n输出: ModuleNotFoundError: No module named 'neuralforecast'\n命令: ls -la /home /opt 2>/dev/null\n输出: 目录为空，无项目代码"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（验证确认find命令未找到项目Python文件、import neuralforecast失败、/home和/opt目录为空，表明Setup Agent未复制项目代码，导致无法运行测试或验证核心依赖）。综合裁决：有至少一条指控成立。"
+  },
+  {
+    "repo": "tmuxp",
+    "batch": "top50_xpu_v2_b003",
+    "repo_url": "https://github.com/tmux-python/tmuxp",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent未安装核心依赖tmuxp（来源：项目tmuxp v1.67.0的Python包依赖，基于用户提供的项目信息）",
+        "evidence": "命令: python3 -c 'import tmuxp'\n输出: ModuleNotFoundError: No module named 'tmuxp'"
+      },
+      {
+        "claim": "Setup Agent未安装测试工具pytest，导致测试套件无法运行（Python项目标准测试依赖）",
+        "evidence": "命令: python3 -m pytest --collect-only\n输出: /usr/bin/python3: No module named pytest"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（原因：检察官用系统python3验证，容器环境快照显示无虚拟环境，无项目标记文件，依赖安装应在项目环境中进行，但无证据表明Setup Agent失职；依赖可能未安装，但检察官未证明这是核心依赖或项目存在），指控2 驳回（原因：类似指控1，pytest是测试依赖，检察官用系统python3验证，容器中无项目文件，无法确认测试套件需求；失败原因可能是环境配置问题，非Setup Agent失职），综合裁决：所有指控均被驳回，因为检察官对项目环境判断错误，用系统python而非项目环境验证，且无项目证据支持依赖需求。"
+  },
+  {
+    "repo": "acme",
+    "batch": "top50_xpu_v2_b003",
+    "repo_url": "https://github.com/google-deepmind/acme",
+    "execagent_status": "FAILED",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未提供项目文件或环境不完整，导致无法识别项目语言和依赖（来源：容器内无项目标记文件，/app/acme 目录为空）",
+        "evidence": "命令: ls -la /app/acme\n输出: total 8\ndrwxr-xr-x 2 root root 4096 Mar 21 20:49 .\ndrwxr-xr-x 3 root root 4096 Mar 21 20:49 ..\n命令: find / -name 'pyproject.toml' -o -name 'setup.py' -o -name 'requirements.txt' -o -name 'CMakeLists.txt' -o -name 'Makefile' -o -name 'pom.xml' -o -name 'package.json' 2>/dev/null | head -20\n输出: /usr/local/lib/python3.9/config-3.9-aarch64-linux-gnu/Makefile"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（原因：检察官的指控基于/app/acme目录为空且无项目标记文件，这确实是事实，但Setup Agent的职责是设置环境，而非创建项目文件。项目文件缺失是项目本身的问题，而非Setup Agent失职。Setup Agent在步骤0中提供了Dockerfile和安装脚本，这显示它已执行了其任务。容器环境快照显示无虚拟环境，但Setup Agent可能已安装依赖在系统Python中，且检察官未验证依赖安装情况。因此，指控不成立，因为失败原因是项目文件缺失，而非Setup Agent未提供环境。"
+  },
+  {
+    "repo": "smart_open",
+    "batch": "top50_xpu_v2_b004",
+    "repo_url": "https://github.com/piskvorky/smart_open",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 Python 解释器（来源：项目 smart_open 是 Python 库，需要 Python 环境）",
+        "evidence": "命令: which python python2 python3\n输出: No Python found\n补充: Python3 命令未找到，pip 不可用，导致无法导入任何 Python 模块或运行测试。"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（原因：检察官对项目类型判断错误或环境不匹配；容器环境中无项目文件，无法确认smart_open是Python项目；Setup Agent负责安装项目依赖，Python解释器是基础环境，非其核心依赖安装职责；验证虽确认Python未安装，但非Setup Agent失职）。综合裁决：所有指控均被驳回。"
+  },
+  {
+    "repo": "briefcase",
+    "batch": "top50_xpu_v2_b004",
+    "repo_url": "https://github.com/beeware/briefcase",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未部署项目代码，导致无法识别项目语言和依赖（来源：强制调查流程第零步要求标记文件）",
+        "evidence": "命令: find / -type f -name 'pyproject.toml' -o -name 'setup.py' -o -name 'requirements.txt' -o -name 'CMakeLists.txt' -o -name 'Makefile' -o -name 'pom.xml' -o -name 'package.json' 2>/dev/null | head -20\n输出: /usr/local/lib/python3.11/config-3.11-aarch64-linux-gnu/Makefile\n/usr/lib/python3.13/test/libregrtest/setup.py\n/usr/lib/python3.13/config-3.13-aarch64-linux-gnu/Makefile"
+      },
+      {
+        "claim": "Setup Agent 未安装任何项目核心依赖，仅提供基础 Python 环境（来源：pip list 显示只有 pip、setuptools、wheel）",
+        "evidence": "命令: pip list 2>&1 | head -20\n输出: Package    Version\n---------- -------\npip        24.0\nsetuptools 79.0.1\nwheel      0.45.1"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（验证确认没有项目标记文件，项目代码未部署），指控2成立（验证确认没有安装项目核心依赖，仅基础Python环境）。综合裁决：有至少一条指控成立，因此Setup Agent有罪。"
+  },
+  {
+    "repo": "sentry-python",
+    "batch": "top50_xpu_v2_b004",
+    "repo_url": "https://github.com/getsentry/sentry-python",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 urllib3（来源：setup.py install_requires）",
+        "evidence": "命令: python3 -c 'import urllib3'\n输出: ModuleNotFoundError: No module named 'urllib3'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 certifi（来源：setup.py install_requires）",
+        "evidence": "命令: python3 -c 'import certifi'\n输出: ModuleNotFoundError: No module named 'certifi'"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立，验证确认setup.py中install_requires包含urllib3，但导入失败，依赖确实缺失；指控2成立，验证确认setup.py中install_requires包含certifi，但导入失败，依赖确实缺失；综合裁决，Setup Agent未安装核心依赖，有罪"
+  },
+  {
+    "repo": "django-autocomplete-light",
+    "batch": "top50_xpu_v2_b004",
+    "repo_url": "https://github.com/yourlabs/django-autocomplete-light",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 Django（来源：django-autocomplete-light 项目的标准依赖声明，如 setup.py 或 requirements.txt 中）",
+        "evidence": "命令: python3 -c 'import django'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'django'"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1 成立（验证确认Django依赖不可导入，且环境快照显示无项目文件，但检察官证据基于标准依赖声明，Setup Agent可能未安装核心依赖）。综合裁决：有至少一条指控成立。"
+  },
+  {
+    "repo": "piccolo",
+    "batch": "top50_xpu_v2_b005",
+    "repo_url": "https://github.com/piccolo-orm/piccolo",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 piccolo（来源：项目为 Piccolo ORM，推断核心依赖包括 piccolo 包）",
+        "evidence": "命令: python3 -c 'import piccolo'\n输出: ModuleNotFoundError: No module named 'piccolo'"
+      },
+      {
+        "claim": "Setup Agent 未安装测试依赖 pytest（来源：标准 Python 测试套件通常需要 pytest）",
+        "evidence": "命令: /app/piccolo/.venv/bin/python -m pytest\n输出: /app/piccolo/.venv/bin/python: No module named pytest"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（验证确认在项目虚拟环境中无法导入 piccolo，项目为 Piccolo ORM，核心依赖包括 piccolo），指控2驳回（验证确认 pytest 无法导入，但检察官未证明 pytest 是项目核心或必需测试依赖，且未找到测试配置文件，可能为非核心依赖或项目不使用 pytest）。综合裁决：有至少一条指控成立，因此 guilty。"
+  },
+  {
+    "repo": "python-holidays",
+    "batch": "top50_xpu_v2_b005",
+    "repo_url": "https://github.com/vacanza/python-holidays",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 配置的环境无法执行基本命令（如 bash、sh、python3），导致无法验证核心依赖或运行测试",
+        "evidence": "命令: 尝试执行多个命令（如 ls、python3 --version、find）\n输出: exit_code=127, stderr: timeout: can't execute 'bash': No such file or directory\n这表明容器环境缺少必要的 shell 或解释器，Setup Agent 未正确配置环境以满足项目运行测试的基本要求。"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1 成立（验证确认环境无法执行基本命令如 ls 和 python3，exit_code=127 和 stderr 指示缺少 bash，Setup Agent 未正确配置环境以满足项目运行测试的基本要求）。综合裁决：有至少一条指控成立，因此 guilty。"
+  },
+  {
+    "repo": "pyftpdlib",
+    "batch": "top50_xpu_v2_b005",
+    "repo_url": "https://github.com/giampaolo/pyftpdlib",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 pyftpdlib（来源：项目 pyftpdlib 本身作为依赖，通常通过 setup.py 或 requirements.txt 声明）",
+        "evidence": "命令: python3 -c 'import pyftpdlib'\n输出: ModuleNotFoundError: No module named 'pyftpdlib'"
+      },
+      {
+        "claim": "Setup Agent 未提供项目文件到容器中，导致无法读取依赖声明和运行测试",
+        "evidence": "命令: ls -la /app/pyftpdlib\n输出: total 8\ndrwxr-xr-x 2 root root 4096 Mar 21 20:58 .\ndrwxr-xr-x 3 root root 4096 Mar 21 20:58 .."
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立，因为验证确认pyftpdlib不可导入，且未找到setup.py或requirements.txt，但检察官指控Setup Agent未安装核心依赖，而项目本身是pyftpdlib，依赖可能指项目自身，但容器中无项目文件，导致无法安装；指控2成立，因为验证确认/app/pyftpdlib目录为空，无项目文件，Setup Agent未提供项目文件。综合裁决，Setup Agent失职。"
+  },
+  {
+    "repo": "python-control",
+    "batch": "top50_xpu_v2_b004",
+    "repo_url": "https://github.com/python-control/python-control",
+    "execagent_status": "FAILED",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "twine",
+    "batch": "top50_xpu_v2_b005",
+    "repo_url": "https://github.com/pypa/twine",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 twine（项目本身），导致无法导入模块",
+        "evidence": "命令: cd /app/twine && python3 -c \"import twine; print('twine version:', twine.__version__)\"\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'twine'"
+      },
+      {
+        "claim": "Setup Agent 未安装测试运行工具 pytest，导致无法执行测试套件",
+        "evidence": "命令: cd /app/twine && python3 -m pytest --tb=line -q --timeout=60 2>&1 | tail -60\n输出: /app/twine/.venv/bin/python3: No module named pytest"
+      },
+      {
+        "claim": "Setup Agent 未提供项目源代码或依赖声明文件，环境配置不完整",
+        "evidence": "命令: find /app/twine -maxdepth 2 -type f -name 'pyproject.toml' -o -name 'setup.py' -o -name 'setup.cfg' -o -name 'requirements.txt' 2>/dev/null\n输出: (空)，未找到任何项目标记文件"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（验证确认twine依赖不可导入，且虚拟环境中未安装twine，twine是项目本身的核心依赖），指控2驳回（pytest是测试工具，非核心依赖，且没有证据表明项目有测试套件需要pytest），指控3成立（验证确认工作目录中无项目源代码或依赖声明文件，环境配置不完整）。综合裁决：有至少一条指控成立，因此guilty。"
+  },
+  {
+    "repo": "fastapi-pagination",
+    "batch": "top50_xpu_v2_b005",
+    "repo_url": "https://github.com/uriyyo/fastapi-pagination",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未正确配置项目环境：项目目录 /app/fastapi-pagination 为空，没有项目标记文件或源代码，导致无法运行测试",
+        "evidence": "命令: ls -la /app/fastapi-pagination\n输出: total 8\ndrwxr-xr-x 2 root root 4096 Mar 21 13:03 .\ndrwxr-xr-x 1 root root 4096 Mar 21 13:03 ..\n命令: find / -name 'pyproject.toml' -o -name 'setup.py' -o -name 'requirements.txt' -o -name 'CMakeLists.txt' -o -name 'Makefile' -o -name 'pom.xml' -o -name 'package.json' 2>/dev/null | head -20\n输出: /usr/local/lib/python3.11/config-3.11-aarch64-linux-gnu/Makefile"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1 成立（验证确认项目目录为空，且未找到项目标记文件，导致无法运行测试），综合裁决为有罪。"
+  },
+  {
+    "repo": "memegen",
+    "batch": "top50_xpu_v2_b005",
+    "repo_url": "https://github.com/jacebrowning/memegen",
+    "execagent_status": "SUCCESS",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未配置项目目录，导致无法识别项目语言和运行测试（来源：Setup Agent 执行轨迹提到项目 'memegen' 和 pyproject.toml，但容器中未找到）",
+        "evidence": "命令: find / -name 'pyproject.toml' 2>/dev/null | grep -v '/usr/share/doc/'\n输出: 无相关文件\n命令: ls -la /workspace 2>/dev/null\n输出: /workspace not found\n命令: pwd && ls -la .\n输出: /, 无项目文件"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1 成立（验证确认未找到 pyproject.toml、当前目录 / 无项目文件、/workspace 不存在，Setup Agent 确实未配置项目目录，导致无法识别项目语言和运行测试）。综合裁决：有 ≥1 条指控成立，因此 guilty。"
+  },
+  {
+    "repo": "connexion",
+    "batch": "top50_xpu_v2_b003",
+    "repo_url": "https://github.com/spec-first/connexion",
+    "execagent_status": "SUCCESS",
+    "build_ok": false,
+    "install_ok": false,
+    "prosecute": null,
+    "charges": [],
+    "verdict": null,
+    "reason": "Docker 构建失败"
+  },
+  {
+    "repo": "androidviewclient",
+    "batch": "top50_xpu_v2_b005",
+    "repo_url": "https://github.com/dtmilano/androidviewclient",
+    "execagent_status": "SUCCESS",
+    "build_ok": false,
+    "install_ok": false,
+    "prosecute": null,
+    "charges": [],
+    "verdict": null,
+    "reason": "Docker 构建失败"
+  }
+]

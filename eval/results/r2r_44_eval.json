@@ -1,0 +1,273 @@
+[
+  {
+    "repo": "ccache",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装满足版本要求的 CMake 工具（来源：CMakeLists.txt 中的 cmake_minimum_required(VERSION 3.18)）",
+        "evidence": "命令: cmake --version\n输出: cmake version 3.16.3\n命令: grep 'cmake_minimum_required' CMakeLists.txt\n输出: cmake_minimum_required(VERSION 3.18)\n配置失败输出: CMake Error at CMakeLists.txt:1 (cmake_minimum_required): CMake 3.18 or higher is required. You are running version 3.16.3"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立，因为验证确认CMake版本为3.16.3，低于CMakeLists.txt要求的3.18版本，导致配置失败。综合裁决：有至少一条指控成立，因此Setup Agent有罪。"
+  },
+  {
+    "repo": "cpython",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未正确设置项目源代码，导致 cpython 目录为空，无法运行测试（来源：install.sh 脚本期望在项目目录中运行 configure 和 make）",
+        "evidence": "命令: ls -la /app/cpython\n输出: total 8\ndrwxr-xr-x 2 root root 4096 Mar 18 07:11 .\ndrwxr-xr-x 1 root root 4096 Mar 18 18:54 ..\n\n命令: cd /app && ls -la\n输出: total 16\ndrwxr-xr-x 1 root root 4096 Mar 18 18:54 .\ndrwxr-xr-x 1 root root 4096 Mar 18 18:54 ..\ndrwxr-xr-x 2 root root 4096 Mar 18 07:11 cpython\n-rwxr-xr-x 1  501 dialout  236 Mar 18 06:01 install.sh\n\n命令: cd /app && if [ -f configure ]; then ./configure --with-pydebug 2>&1 | tail -20; elif [ -f Makefile ]; then make -s -j2 2>&1 | tail -20; else echo 'No configure or Makefile found'; fi\n输出: No configure or Makefile found"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立，因为验证确认cpython目录为空，install.sh脚本期望在项目目录中运行configure和make，但目录中缺少这些文件，导致无法运行测试。综合裁决：有至少一条指控成立。"
+  },
+  {
+    "repo": "ansible",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未确保项目核心包 'ansible' 可导入（来源：项目本身，通过 requirements.txt 和 pyproject.toml 动态依赖）",
+        "evidence": "命令: python3 -c 'import ansible'\n输出: ModuleNotFoundError: No module named 'ansible'\n补充证据: 项目包安装在 /app/ansible，但未配置 Python 路径或可编辑安装，导致测试收集失败。"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1 成立（验证确认依赖 'ansible' 不可导入，项目目录 /app/ansible 在 Python 路径中但未安装 ansible 包，检察官证据与验证结果一致，Setup Agent 未确保核心包可导入），综合裁决：有至少一条指控成立。"
+  },
+  {
+    "repo": "distcc",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "django",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 asgiref（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import asgiref'\n输出: ModuleNotFoundError: No module named 'asgiref'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 sqlparse（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import sqlparse'\n输出: ModuleNotFoundError: No module named 'sqlparse'"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1 成立（验证确认 asgiref 在 pyproject.toml 的 [project.dependencies] 中且不可导入），指控2 成立（验证确认 sqlparse 在 pyproject.toml 的 [project.dependencies] 中且不可导入），综合裁决 Setup Agent 未安装核心依赖。"
+  },
+  {
+    "repo": "flask",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 blinker（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: cd /app/flask && source venv/bin/activate && python3 -c 'import blinker'\n输出: Traceback (most recent call last):\nModuleNotFoundError: No module named 'blinker'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 click（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: cd /app/flask && source venv/bin/activate && python3 -c 'import click'\n输出: Traceback (most recent call last):\nModuleNotFoundError: No module named 'click'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 itsdangerous（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: cd /app/flask && source venv/bin/activate && python3 -c 'import itsdangerous'\n输出: Traceback (most recent call last):\nModuleNotFoundError: No module named 'itsdangerous'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 jinja2（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: cd /app/flask && source venv/bin/activate && python3 -c 'import jinja2'\n输出: Traceback (most recent call last):\nModuleNotFoundError: No module named 'jinja2'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 markupsafe（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: cd /app/flask && source venv/bin/activate && python3 -c 'import markupsafe'\n输出: Traceback (most recent call last):\nModuleNotFoundError: No module named 'markupsafe'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 werkzeug（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: cd /app/flask && source venv/bin/activate && python3 -c 'import werkzeug'\n输出: Traceback (most recent call last):\nModuleNotFoundError: No module named 'werkzeug'"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（验证确认依赖 blinker 不可导入），指控2成立（验证确认依赖 click 不可导入），指控3成立（验证确认依赖 itsdangerous 不可导入），指控4成立（验证确认依赖 jinja2 不可导入），指控5成立（验证确认依赖 markupsafe 不可导入），指控6成立（验证确认依赖 werkzeug 不可导入）。所有指控均成立，Setup Agent 未安装核心依赖。综合裁决：guilty。"
+  },
+  {
+    "repo": "jsonc",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "keras",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 absl-py（来源：pyproject.toml [project.dependencies] 和 requirements-common.txt）",
+        "evidence": "命令: cd /app/keras && python3 -c 'import absl'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'absl'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 numpy（来源：pyproject.toml [project.dependencies] 和 requirements-common.txt）",
+        "evidence": "命令: cd /app/keras && python3 -c 'import numpy'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'numpy'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 rich（来源：pyproject.toml [project.dependencies] 和 requirements-common.txt）",
+        "evidence": "命令: cd /app/keras && python3 -c 'import rich'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'rich'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 namex（来源：pyproject.toml [project.dependencies] 和 requirements-common.txt）",
+        "evidence": "命令: cd /app/keras && python3 -c 'import namex'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'namex'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 h5py（来源：pyproject.toml [project.dependencies] 和 requirements-common.txt）",
+        "evidence": "命令: cd /app/keras && python3 -c 'import h5py'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'h5py'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 optree（来源：pyproject.toml [project.dependencies] 和 requirements-common.txt）",
+        "evidence": "命令: cd /app/keras && python3 -c 'import optree'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'optree'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 ml-dtypes（来源：pyproject.toml [project.dependencies] 和 requirements-common.txt）",
+        "evidence": "命令: cd /app/keras && python3 -c 'import ml_dtypes'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'ml_dtypes'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 packaging（来源：pyproject.toml [project.dependencies] 和 requirements-common.txt）",
+        "evidence": "命令: cd /app/keras && python3 -c 'import packaging'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'packaging'"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（验证确认依赖absl-py在pyproject.toml和requirements-common.txt中，但import失败），指控2成立（验证确认依赖numpy在pyproject.toml和requirements-common.txt中，但import失败），指控3成立（验证确认依赖rich在pyproject.toml和requirements-common.txt中，但import失败），指控4成立（验证确认依赖namex在pyproject.toml和requirements-common.txt中，但import失败），指控5成立（验证确认依赖h5py在pyproject.toml和requirements-common.txt中，但import失败），指控6成立（验证确认依赖optree在pyproject.toml和requirements-common.txt中，但import失败），指控7成立（验证确认依赖ml-dtypes在pyproject.toml和requirements-common.txt中，但import失败），指控8成立（验证确认依赖packaging在pyproject.toml和requirements-common.txt中，但import失败）。所有8条指控均成立，Setup Agent未安装这些核心依赖。综合裁决：guilty。"
+  },
+  {
+    "repo": "libevent",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 OpenSSL 开发包（来源：CMakeLists.txt 第 949 行 find_package(OpenSSL)）",
+        "evidence": "命令: cd /app/libevent && echo '#include <openssl/ssl.h>\\nint main() { return 0; }' > test_ssl.c && cc -c test_ssl.c -o test_ssl.o 2>&1\n输出: test_ssl.c:1:10: fatal error: openssl/ssl.h: No such file or directory\n    1 | #include <openssl/ssl.h>\n      |          ^~~~~~~~~~~~~~~\ncompilation terminated."
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 ZLIB 开发包（来源：CMakeLists.txt 第 1008 行 find_package(ZLIB)）",
+        "evidence": "命令: apt list --installed 2>/dev/null | grep -E 'libssl-dev|zlib1g-dev'\n输出: (空，表示未安装)\n补充: CMake 配置错误显示 -- Could NOT find ZLIB (missing: ZLIB_LIBRARY ZLIB_INCLUDE_DIR)"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（验证确认OpenSSL开发包未安装，编译失败），指控2成立（验证确认ZLIB开发包未安装，apt列表为空），综合裁决Setup Agent未安装核心依赖。"
+  },
+  {
+    "repo": "json",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": null,
+    "charges": [],
+    "verdict": null,
+    "reason": "评估异常: UnixHTTPConnectionPool(host='localhost', port=None): Read timed out. (read timeout=60)"
+  },
+  {
+    "repo": "git",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": null,
+    "charges": [],
+    "verdict": null,
+    "reason": "评估异常: UnixHTTPConnectionPool(host='localhost', port=None): Read timed out. (read timeout=60)"
+  },
+  {
+    "repo": "openvpn",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未确保核心依赖 libnl-genl-3-dev 正确配置，导致编译时头文件路径缺失（来源：install.sh 中声明的依赖包）",
+        "evidence": "命令: gcc -o test_dep test_dep.c -llzo2 -lpam -llz4 -lcap-ng -lnl-genl-3 -lcmocka\n输出: test_dep.c:5:10: fatal error: netlink/genl/genl.h: No such file or directory\n补充证据：头文件实际路径为 /usr/include/libnl3/netlink/genl/genl.h，但标准引用失败，表明环境配置不完整。"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "指控1 成立（验证确认依赖 libnl-genl-3-dev 安装但头文件路径缺失，导致编译失败，与检察官证据一致）。综合裁决：有至少一条指控成立。"
+  },
+  {
+    "repo": "pandas",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 numpy（来源：requirements-dev.txt 中列为 'numpy<3'）",
+        "evidence": "命令: cd /app/pandas && source venv/bin/activate && python3 -c 'import numpy' 2>&1\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'numpy'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 cython（来源：requirements-dev.txt 中列为 'cython>=3.1.0,<4.0.0a0'）",
+        "evidence": "命令: cd /app/pandas && source venv/bin/activate && python3 -c 'import cython' 2>&1\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'cython'"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1 成立（验证确认 numpy 在 requirements-dev.txt 中列为依赖，且在虚拟环境中导入失败，表明 Setup Agent 未安装此核心依赖）。指控2 成立（验证确认 cython 在 requirements-dev.txt 中列为依赖，且在虚拟环境中导入失败，表明 Setup Agent 未安装此核心依赖）。综合裁决：有 ≥1 条指控成立，Setup Agent 有罪。"
+  },
+  {
+    "repo": "pytest",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 iniconfig（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import iniconfig'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'iniconfig'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 packaging（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import packaging'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'packaging'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 pluggy（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import pluggy'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'pluggy'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 pygments（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import pygments'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'pygments'"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（iniconfig在pyproject.toml依赖列表中，导入失败），指控2成立（packaging在依赖列表中，导入失败），指控3成立（pluggy在依赖列表中，导入失败），指控4成立（pygments在依赖列表中，导入失败）。所有依赖均为核心依赖，非可选extras，失败原因为未安装，非外部服务或环境错误。综合裁决：Setup Agent失职，未安装核心依赖。"
+  },
+  {
+    "repo": "scikit-learn",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未构建项目 scikit-learn，导致核心模块不可用（来源：pyproject.toml [project] 项目声明）",
+        "evidence": "命令: python3 -c 'import sklearn'\n输出: ImportError: No module named 'sklearn.__check_build._check_build'\n附加信息: 测试套件运行失败，相同错误，表明项目未正确构建。"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1 成立（验证确认 import sklearn 失败，错误为 ModuleNotFoundError: No module named 'sklearn.__check_build._check_build'，且 build 目录存在但项目未正确构建，表明 Setup Agent 未完成构建步骤），综合裁决为 guilty。"
+  },
+  {
+    "repo": "opencv",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  }
+]

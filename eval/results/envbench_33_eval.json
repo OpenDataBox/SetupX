@@ -1,0 +1,602 @@
+[
+  {
+    "repo": "trafilatura",
+    "full": "adbar/trafilatura",
+    "repo_url": "https://github.com/adbar/trafilatura",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "proselint",
+    "full": "amperser/proselint",
+    "repo_url": "https://github.com/amperser/proselint",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "cantools",
+    "full": "cantools/cantools",
+    "repo_url": "https://github.com/cantools/cantools",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "featuretools",
+    "full": "alteryx/featuretools",
+    "repo_url": "https://github.com/alteryx/featuretools",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 plotly（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import plotly'\n输出: ModuleNotFoundError: No module named 'plotly'\n命令: pip show plotly\n输出: WARNING: Package(s) not found: plotly"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 kaleido（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import kaleido'\n输出: ModuleNotFoundError: No module named 'kaleido'\n命令: pip show kaleido\n输出: WARNING: Package(s) not found: kaleido"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（plotly未在pyproject.toml的dependencies或optional-dependencies中找到，检察官错误判断为核心依赖），指控2 驳回（类似地，kaleido未找到，且未验证但基于相同理由驳回），综合裁决所有指控均不成立。"
+  },
+  {
+    "repo": "plugin.video.netflix",
+    "full": "castagnait/plugin.video.netflix",
+    "repo_url": "https://github.com/castagnait/plugin.video.netflix",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "py-evm",
+    "full": "ethereum/py-evm",
+    "repo_url": "https://github.com/ethereum/py-evm",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 cached-property（来源：setup.py extras_require['eth']）",
+        "evidence": "命令: python3 -c 'import cached_property'\n输出: ModuleNotFoundError: No module named 'cached_property'\n命令: pip show cached-property\n输出: WARNING: Package(s) not found: cached-property"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 eth-bloom（来源：setup.py extras_require['eth']）",
+        "evidence": "命令: python3 -c 'import eth_bloom'\n输出: ModuleNotFoundError: No module named 'eth_bloom'\n命令: pip show eth-bloom\n输出: WARNING: Package(s) not found: eth-bloom"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 eth-keys（来源：setup.py extras_require['eth']）",
+        "evidence": "命令: pip show eth-keys\n输出: WARNING: Package(s) not found: eth-keys"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 eth-typing（来源：setup.py extras_require['eth']）",
+        "evidence": "命令: python3 -c 'import eth_typing'\n输出: ModuleNotFoundError: No module named 'eth_typing'\n命令: pip show eth-typing\n输出: WARNING: Package(s) not found: eth-typing"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 eth-utils（来源：setup.py extras_require['eth']）",
+        "evidence": "命令: pip show eth-utils\n输出: WARNING: Package(s) not found: eth-utils"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 lru-dict（来源：setup.py extras_require['eth']）",
+        "evidence": "命令: pip show lru-dict\n输出: WARNING: Package(s) not found: lru-dict"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 py-ecc（来源：setup.py extras_require['eth']）",
+        "evidence": "命令: pip show py-ecc\n输出: WARNING: Package(s) not found: py-ecc"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 rlp（来源：setup.py extras_require['eth']）",
+        "evidence": "命令: pip show rlp\n输出: WARNING: Package(s) not found: rlp"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 trie（来源：setup.py extras_require['eth']）",
+        "evidence": "命令: pip show trie\n输出: WARNING: Package(s) not found: trie"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 ckzg（来源：setup.py extras_require['eth']）",
+        "evidence": "命令: pip show ckzg\n输出: WARNING: Package(s) not found: ckzg"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（原因：cached-property不在setup.py的extras_require['eth']中，检察官对依赖位置判断错误），其他指控待验证。"
+  },
+  {
+    "repo": "mteb",
+    "full": "embeddings-benchmark/mteb",
+    "repo_url": "https://github.com/embeddings-benchmark/mteb",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 beir（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import beir'\n输出: ModuleNotFoundError: No module named 'beir'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 rank_bm25（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import rank_bm25'\n输出: ModuleNotFoundError: No module named 'rank_bm25'"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（原因：pyproject.toml的dependencies中未包含beir，因此Setup Agent无需安装beir），指控2 驳回（原因：pyproject.toml的dependencies中未包含rank_bm25，因此Setup Agent无需安装rank_bm25），综合裁决：所有指控均不成立，Setup Agent无罪"
+  },
+  {
+    "repo": "pip-tools",
+    "full": "jazzband/pip-tools",
+    "repo_url": "https://github.com/jazzband/pip-tools",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "datasets",
+    "full": "huggingface/datasets",
+    "repo_url": "https://github.com/huggingface/datasets",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "lark",
+    "full": "lark-parser/lark",
+    "repo_url": "https://github.com/lark-parser/lark",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "kedro",
+    "full": "kedro-org/kedro",
+    "repo_url": "https://github.com/kedro-org/kedro",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "great-tables",
+    "full": "posit-dev/great-tables",
+    "repo_url": "https://github.com/posit-dev/great-tables",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "pip",
+    "full": "pypa/pip",
+    "repo_url": "https://github.com/pypa/pip",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "python-holidays",
+    "full": "vacanza/python-holidays",
+    "repo_url": "https://github.com/vacanza/python-holidays",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "autograd",
+    "full": "hips/autograd",
+    "repo_url": "https://github.com/hips/autograd",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "dj-stripe",
+    "full": "dj-stripe/dj-stripe",
+    "repo_url": "https://github.com/dj-stripe/dj-stripe",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 django-model-utils（来源：pyproject.toml [tool.poetry.dependencies]）",
+        "evidence": "命令: python3 -c 'import django_model_utils'\n输出: ModuleNotFoundError: No module named 'django_model_utils'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 django-timezone-field（来源：pyproject.toml [tool.poetry.dependencies]）",
+        "evidence": "命令: python3 -c 'import django_timezone_field'\n输出: ModuleNotFoundError: No module named 'django_timezone_field'"
+      }
+    ],
+    "verdict": "pending",
+    "reason": "指控1：依赖 django-model-utils 未在 pyproject.toml 的 [tool.poetry.dependencies] 中找到，检察官引用错误，指控驳回。"
+  },
+  {
+    "repo": "sentry-python",
+    "full": "getsentry/sentry-python",
+    "repo_url": "https://github.com/getsentry/sentry-python",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "pyftpdlib",
+    "full": "giampaolo/pyftpdlib",
+    "repo_url": "https://github.com/giampaolo/pyftpdlib",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "molecule",
+    "full": "ansible/molecule",
+    "repo_url": "https://github.com/ansible/molecule",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "litgpt",
+    "full": "Lightning-AI/litgpt",
+    "repo_url": "https://github.com/Lightning-AI/litgpt",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "umap",
+    "full": "lmcinnes/umap",
+    "repo_url": "https://github.com/lmcinnes/umap",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "plotnine",
+    "full": "has2k1/plotnine",
+    "repo_url": "https://github.com/has2k1/plotnine",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "mopidy",
+    "full": "mopidy/mopidy",
+    "repo_url": "https://github.com/mopidy/mopidy",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 pygobject >= 3.42（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import gi'\n输出: ModuleNotFoundError: No module named 'gi'\n命令: pip show pygobject\n输出: WARNING: Package(s) not found: pygobject"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 pykka >= 4.0（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import pykka'\n输出: ModuleNotFoundError: No module named 'pykka'\n命令: pip show pykka\n输出: WARNING: Package(s) not found: pykka"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 requests >= 2.28（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import requests'\n输出: ModuleNotFoundError: No module named 'requests'\n命令: pip show requests\n输出: WARNING: Package(s) not found: requests"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 tornado >= 6.2（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import tornado'\n输出: ModuleNotFoundError: No module named 'tornado'\n命令: pip show tornado\n输出: WARNING: Package(s) not found: tornado"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（验证确认pygobject >= 3.42在pyproject.toml的[project.dependencies]中，是核心依赖，且导入gi失败），指控2成立（验证确认pykka >= 4.0在核心依赖中，且导入pykka失败），指控3成立（验证确认requests >= 2.28在核心依赖中，且导入requests失败），指控4成立（验证确认tornado >= 6.2在核心依赖中，且导入tornado失败）。所有4条指控均验证成立，Setup Agent未安装这些核心依赖，导致导入失败。综合裁决：guilty。"
+  },
+  {
+    "repo": "hacs_waste_collection_schedule",
+    "full": "mampfes/hacs_waste_collection_schedule",
+    "repo_url": "https://github.com/mampfes/hacs_waste_collection_schedule",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 beautifulsoup4（来源：requirements.txt 第1行）",
+        "evidence": "命令: python3 -c 'import bs4'\n输出: ModuleNotFoundError: No module named 'bs4'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 DateTime（来源：requirements.txt 第2行）",
+        "evidence": "命令: python3 -c 'import DateTime'\n输出: ModuleNotFoundError: No module named 'DateTime'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 icalendar（来源：requirements.txt 第3行）",
+        "evidence": "命令: python3 -c 'import icalendar'\n输出: ModuleNotFoundError: No module named 'icalendar'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 icalevents（来源：requirements.txt 第4行）",
+        "evidence": "命令: python3 -c 'import icalevents'\n输出: ModuleNotFoundError: No module named 'icalevents'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 python-dateutil（来源：requirements.txt 第5行）",
+        "evidence": "命令: python3 -c 'import dateutil'\n输出: ModuleNotFoundError: No module named 'dateutil'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 pytz（来源：requirements.txt 第6行）",
+        "evidence": "命令: python3 -c 'import pytz'\n输出: ModuleNotFoundError: No module named 'pytz'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 PyYAML（来源：requirements.txt 第7行）",
+        "evidence": "命令: python3 -c 'import yaml'\n输出: ModuleNotFoundError: No module named 'yaml'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 recurring-ical-events（来源：requirements.txt 第8行）",
+        "evidence": "命令: python3 -c 'import recurring_ical_events'\n输出: ModuleNotFoundError: No module named 'recurring_ical_events'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 requests（来源：requirements.txt 第9行）",
+        "evidence": "命令: python3 -c 'import requests'\n输出: ModuleNotFoundError: No module named 'requests'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 urllib3（来源：requirements.txt 第10行）",
+        "evidence": "命令: python3 -c 'import urllib3'\n输出: ModuleNotFoundError: No module named 'urllib3'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 jinja2（来源：requirements.txt 第11行）",
+        "evidence": "命令: python3 -c 'import jinja2'\n输出: ModuleNotFoundError: No module named 'jinja2'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 lxml（来源：requirements.txt 第12行）",
+        "evidence": "命令: python3 -c 'import lxml'\n输出: ModuleNotFoundError: No module named 'lxml'"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1 成立（验证确认依赖beautifulsoup4不可导入），指控2 成立（验证确认依赖DateTime不可导入），指控3 成立（验证确认依赖icalendar不可导入），指控4 成立（验证确认依赖icalevents不可导入），指控5 成立（验证确认依赖python-dateutil不可导入），指控6 成立（验证确认依赖pytz不可导入），指控7 成立（验证确认依赖PyYAML不可导入），指控8 成立（验证确认依赖recurring-ical-events不可导入），指控9 成立（验证确认依赖requests不可导入），指控10 成立（验证确认依赖urllib3不可导入），指控11 成立（验证确认依赖jinja2不可导入），指控12 成立（验证确认依赖lxml不可导入）。所有12条指控均成立，Setup Agent未安装requirements.txt中列出的核心依赖。综合裁决：guilty。"
+  },
+  {
+    "repo": "smart_open",
+    "full": "piskvorky/smart_open",
+    "repo_url": "https://github.com/piskvorky/smart_open",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 wrapt（来源：setup.py install_requires=base_deps）",
+        "evidence": "命令: python3 -c 'import wrapt'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n    import wrapt\nModuleNotFoundError: No module named 'wrapt'"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1 成立（验证确认依赖 wrapt 在 setup.py 的 install_requires 中，且实际导入失败，表明 Setup Agent 未安装该核心依赖），综合裁决有至少一条指控成立。"
+  },
+  {
+    "repo": "guardrails",
+    "full": "guardrails-ai/guardrails",
+    "repo_url": "https://github.com/guardrails-ai/guardrails",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "nonebot2",
+    "full": "nonebot/nonebot2",
+    "repo_url": "https://github.com/nonebot/nonebot2",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 apscheduler（来源：pyproject.toml [tool.poetry.dependencies]）",
+        "evidence": "命令: python3 -c 'import apscheduler'\n输出: ModuleNotFoundError: No module named 'apscheduler'\n命令: pip show apscheduler\n输出: WARNING: Package(s) not found: apscheduler"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（原因：apscheduler 未在 pyproject.toml 的 tool.poetry.dependencies 中列出，可能不是核心依赖或检察官误判依赖状态；检察官的验证命令正确，但依赖缺失不一定是 Setup Agent 失职，可能依赖在可选 extras 中或项目不需要）。综合裁决：所有指控均被驳回。"
+  },
+  {
+    "repo": "platformio-core",
+    "full": "platformio/platformio-core",
+    "repo_url": "https://github.com/platformio/platformio-core",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 bottle（来源：setup.py install_requires 通过 platformio.dependencies.get_pip_dependencies() 返回）",
+        "evidence": "命令: python3 -c 'import bottle'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n    import bottle\nModuleNotFoundError: No module named 'bottle'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 click（来源：setup.py install_requires 通过 platformio.dependencies.get_pip_dependencies() 返回）",
+        "evidence": "命令: python3 -c 'import click'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n    import click\nModuleNotFoundError: No module named 'click'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 colorama（来源：setup.py install_requires 通过 platformio.dependencies.get_pip_dependencies() 返回）",
+        "evidence": "命令: python3 -c 'import colorama'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n    import colorama\nModuleNotFoundError: No module named 'colorama'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 marshmallow（来源：setup.py install_requires 通过 platformio.dependencies.get_pip_dependencies() 返回）",
+        "evidence": "命令: python3 -c 'import marshmallow'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\n    import marshmallow\nModuleNotFoundError: No module named 'marshmallow'"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": ""
+  },
+  {
+    "repo": "twine",
+    "full": "pypa/twine",
+    "repo_url": "https://github.com/pypa/twine",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 requests（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import requests'\n输出: ModuleNotFoundError: No module named 'requests'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 requests-toolbelt（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import requests_toolbelt'\n输出: ModuleNotFoundError: No module named 'requests_toolbelt'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 urllib3（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import urllib3'\n输出: ModuleNotFoundError: No module named 'urllib3'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 importlib-metadata（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import importlib_metadata'\n输出: ModuleNotFoundError: No module named 'importlib_metadata'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 keyring（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import keyring'\n输出: ModuleNotFoundError: No module named 'keyring'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 rfc3986（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import rfc3986'\n输出: ModuleNotFoundError: No module named 'rfc3986'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 rich（来源：pyproject.toml [project.dependencies]）",
+        "evidence": "命令: python3 -c 'import rich'\n输出: ModuleNotFoundError: No module named 'rich'"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（requests在pyproject.toml核心依赖中，验证不可导入），指控2成立（requests-toolbelt在核心依赖中，验证不可导入），指控3成立（urllib3在核心依赖中，验证不可导入），指控4成立（importlib-metadata在核心依赖中，验证不可导入），指控5成立（keyring在核心依赖中，验证不可导入），指控6成立（rfc3986在核心依赖中，验证不可导入），指控7成立（rich在核心依赖中，验证不可导入）。所有7条指控均成立，Setup Agent未安装核心依赖，综合裁决为guilty。"
+  },
+  {
+    "repo": "supervision",
+    "full": "roboflow/supervision",
+    "repo_url": "https://github.com/roboflow/supervision",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": false,
+    "charges": [],
+    "verdict": "not_guilty",
+    "reason": "检察官未起诉"
+  },
+  {
+    "repo": "connexion",
+    "full": "spec-first/connexion",
+    "repo_url": "https://github.com/spec-first/connexion",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 jinja2（来源：pyproject.toml [tool.poetry.dependencies]）",
+        "evidence": "命令: cd /data/project && python3 -c 'import jinja2'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'jinja2'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 jsonschema（来源：pyproject.toml [tool.poetry.dependencies]）",
+        "evidence": "命令: cd /data/project && python3 -c 'import jsonschema'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'jsonschema'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 openapi-spec-validator（来源：pyproject.toml [tool.poetry.dependencies]）",
+        "evidence": "命令: cd /data/project && python3 -c 'import openapi_spec_validator'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'openapi_spec_validator'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 pyyaml（来源：pyproject.toml [tool.poetry.dependencies]）",
+        "evidence": "命令: cd /data/project && python3 -c 'import yaml'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'yaml'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 requests（来源：pyproject.toml [tool.poetry.dependencies]）",
+        "evidence": "命令: cd /data/project && python3 -c 'import requests'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'requests'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 werkzeug（来源：pyproject.toml [tool.poetry.dependencies]）",
+        "evidence": "命令: cd /data/project && python3 -c 'import werkzeug'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'werkzeug'"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（jinja2在pyproject.toml中存在但导入失败），指控2成立（jsonschema在pyproject.toml中存在但导入失败），指控3驳回（openapi-spec-validator未在pyproject.toml中找到，检察官对来源判断错误），指控4成立（pyyaml在pyproject.toml中存在但导入失败），指控5成立（requests在pyproject.toml中存在但导入失败），指控6成立（werkzeug在pyproject.toml中存在但导入失败）。综合裁决：有≥1条指控成立，Setup Agent未安装核心依赖，guilty。"
+  },
+  {
+    "repo": "tmuxp",
+    "full": "tmux-python/tmuxp",
+    "repo_url": "https://github.com/tmux-python/tmuxp",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 libtmux（来源：pyproject.toml [tool.poetry.dependencies]）",
+        "evidence": "命令: python3 -c 'import libtmux'\n输出: ModuleNotFoundError: No module named 'libtmux'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 colorama（来源：pyproject.toml [tool.poetry.dependencies]）",
+        "evidence": "命令: python3 -c 'import colorama'\n输出: ModuleNotFoundError: No module named 'colorama'"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 PyYAML（来源：pyproject.toml [tool.poetry.dependencies]）",
+        "evidence": "命令: python3 -c 'import yaml'\n输出: ModuleNotFoundError: No module named 'yaml'"
+      }
+    ],
+    "verdict": "guilty",
+    "reason": "逐条说明：指控1成立（验证确认 libtmux 在 pyproject.toml 核心依赖中且不可导入），指控2成立（验证确认 colorama 在核心依赖中且不可导入），指控3成立（验证确认 PyYAML 在核心依赖中且不可导入）。综合裁决：有≥1条指控成立，Setup Agent 有罪。"
+  },
+  {
+    "repo": "tortoise-orm",
+    "full": "tortoise/tortoise-orm",
+    "repo_url": "https://github.com/tortoise/tortoise-orm",
+    "build_ok": true,
+    "install_ok": true,
+    "prosecute": true,
+    "charges": [
+      {
+        "claim": "Setup Agent 未安装核心依赖 tzlocal（来源：pyproject.toml [tool.poetry.dependencies]）",
+        "evidence": "命令: python3 -c 'import tzlocal'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'tzlocal'\n\n命令: pip show tzlocal\n输出: WARNING: Package(s) not found: tzlocal"
+      },
+      {
+        "claim": "Setup Agent 未安装核心依赖 pydantic-settings（来源：pyproject.toml [tool.poetry.dependencies]）",
+        "evidence": "命令: python3 -c 'import pydantic_settings'\n输出: Traceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nModuleNotFoundError: No module named 'pydantic_settings'\n\n命令: pip show pydantic-settings\n输出: WARNING: Package(s) not found: pydantic-settings"
+      }
+    ],
+    "verdict": "not_guilty",
+    "reason": "逐条说明：指控1 驳回（原因：tzlocal 不在 pyproject.toml 的核心依赖 [tool.poetry.dependencies] 中，检察官可能误判了项目类型或依赖位置，且验证显示导入失败但非 Setup Agent 失职），指控2 驳回（原因：pydantic-settings 不在 pyproject.toml 的核心依赖中，检察官可能误判，且验证显示导入失败但非 Setup Agent 失职），综合裁决：所有指控均不成立。"
+  }
+]
