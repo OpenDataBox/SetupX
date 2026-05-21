@@ -1,13 +1,66 @@
-# SetupX — Minimum Runnable Distribution
+<img width="1408" height="768" alt="SetupX architecture overview" src="https://github.com/user-attachments/assets/c86f538e-5c4c-4578-883e-b37d3da9214f" />
 
-This package configures a runnable Docker environment for an arbitrary Git
-repository: given a repo URL, the agent inspects the project, runs shell
-commands inside a sandboxed container until installation / tests succeed, and
-emits a result JSON.
+# SetupX
 
-This is the **minimum standalone build**. It contains the code needed to
-configure one repository at a time, plus the 600-entry warm XPU store used
-in the paper (`data/xpu_warm.jsonl`, see §6.3) .
+**Experience-Driven Automated Environment Configuration with LLM Agents**
+
+
+## Overview
+
+**SetupX** is an LLM-powered multi-agent system that automatically configures software repository build environments inside Docker containers. Given a GitHub repository URL, SetupX spins up a container, iteratively installs dependencies, resolves errors, and configures the environment until the project's test suite can be executed successfully.
+
+Unlike prior approaches that start each configuration from scratch, SetupX features three mutually reinforcing mechanisms:
+
+- **XPU (eXPerience Unit) Knowledge System** — A vector database (PostgreSQL + pgvector) that stores transferable configuration experiences. Successful fixes are extracted, deduplicated, and reused across repositories via two-layer semantic retrieval.
+- **Speculative Execution** — Docker container snapshots enable safe trial-and-rollback of past fixes, addressing the inherently irreversible nature of environment configuration.
+- **Adversarial Verification** — A Prosecutor–Judge pipeline structurally separates configuration and verification roles, preventing self-confirmation bias.
+
+## Architecture
+
+SetupX orchestrates repository configuration through three sequential phases:
+
+```
+Phase 1: Setup with In-Loop Verification
+┌─────────────────────────────────────────────────────┐
+│  Speculative Setup Agent (ReAct loop)               │
+│    ├── Observe environment state                    │
+│    ├── Retriever Agent → XPU two-layer retrieval    │
+│    ├── LLM decision → Action selection              │
+│    ├── Docker execution (with snapshot/rollback)    │
+│    └── Verifier Agent → test suite verification     │
+└─────────────────────────────────────────────────────┘
+                         ↓
+Phase 2: Adversarial Verification
+┌─────────────────────────────────────────────────────┐
+│  Prosecutor Agent → investigate & file charges      │
+│  Judge Agent      → verify each charge independently│
+│  Verdict: guilty / not_guilty                       │
+└─────────────────────────────────────────────────────┘
+                         ↓
+Phase 3: Experience Extraction
+┌─────────────────────────────────────────────────────┐
+│  Extract transferable XPU from agent trajectory     │
+│  Deduplicate & ingest into XPU library              │
+└─────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+| Component | Description |
+|-----------|-------------|
+| **SetupX** | Main orchestrator. Runs a ReAct loop with 6 action types: `SHELL_COMMAND`, `TRY_XPU_SUGGESTION`, `SET_ENV`, `ROLLBACK_ENV`, `VERIFY`, `FINISH`. |
+| **RetrieverAgent** | Sub-agent for XPU knowledge retrieval. Layer 1: vector coarse filtering (pgvector cosine similarity, top-N). Layer 2: LLM re-ranking for precise matching. Also performs delayed audit of previously used XPUs. |
+| **VerifierAgent** | Read-only sub-agent that runs the project's test suite (`pytest`) and distinguishes setup-induced failures from inherent project issues. |
+| **ProsecutorAgent** | Adversarial investigator. Has container access for evidence gathering, files charges with concrete evidence. |
+| **JudgeAgent** | Independent adjudicator. Verifies each charge with 1–2 targeted commands. Renders final verdict. |
+| **EnvironmentManager** | Docker container lifecycle management: create, execute, snapshot (`docker commit`), rollback (stack-based LIFO). |
+| **XPU Vector Store** | PostgreSQL + pgvector backend. Stores embeddings via `text-embedding-3-small`, supports composite scoring with telemetry-based tier boosting. |
+
+---
+
+The rest of this README is the **minimum runnable distribution guide**: how to
+install, configure, and run SetupX on one repository at a time, plus the
+600-entry warm XPU store used in the paper (`data/xpu_warm.jsonl`).
 
 ---
 
