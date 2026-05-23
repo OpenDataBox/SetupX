@@ -330,8 +330,7 @@ All synthesised rows carry id prefixes `noise_ctx_*`, `noise_graft_*`,
     ├── eval_envbench.py / eval_envbench_33.py    # envBench outputs
     ├── eval_execagent.py / eval_execagent_full.py # ExecAgent outputs
     ├── eval_r2r.py                                # Repo2Run outputs
-    ├── offline_xpu_extract.py                     # Offline XPU mining
-    └── results/                                   # Adjudicated JSON + reports
+    └── results/                                   # Adjudicated JSON
 ```
 
 ---
