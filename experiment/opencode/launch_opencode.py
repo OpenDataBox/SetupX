@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-复用 opencode 基础镜像，为单个仓库启动独立容器并运行 OpenCode。
+Reuse the opencode base image to launch a dedicated container for a single
+repository and run OpenCode.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ load_dotenv(PROJECT_ROOT / ".env.local", override=True)
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="在 Docker 中运行 opencode")
+    parser = argparse.ArgumentParser(description="Run opencode inside Docker")
     parser.add_argument("--repository", required=True)
     parser.add_argument("--repo-url", required=True)
     parser.add_argument("--revision", default="HEAD")
@@ -36,7 +37,7 @@ def parse_args() -> argparse.Namespace:
 def require_env(name: str) -> str:
     value = os.getenv(name, "").strip()
     if not value:
-        raise ValueError(f"缺少环境变量: {name}")
+        raise ValueError(f"Missing environment variable: {name}")
     return value
 
 
@@ -64,7 +65,7 @@ def ensure_base_image(client: docker.DockerClient, image_tag: str, rebuild: bool
         except ImageNotFound:
             pass
 
-    print(f"构建 OpenCode 基础镜像: {image_tag}", file=sys.stderr)
+    print(f"Building OpenCode base image: {image_tag}", file=sys.stderr)
     build_env = os.environ.copy()
     build_env["DOCKER_BUILDKIT"] = "0"
     build_command = [
@@ -90,10 +91,10 @@ def ensure_base_image(client: docker.DockerClient, image_tag: str, rebuild: bool
     if build_result.stderr:
         print(build_result.stderr, end="", file=sys.stderr)
     if build_result.returncode != 0:
-        raise RuntimeError(f"构建基础镜像失败，退出码={build_result.returncode}")
+        raise RuntimeError(f"Failed to build base image, exit code={build_result.returncode}")
 
     image = client.images.get(image_tag)
-    print(f"基础镜像构建完成: {image.id[:12]}", file=sys.stderr)
+    print(f"Base image build complete: {image.id[:12]}", file=sys.stderr)
 
 
 def run_exec(container_id: str, args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -159,7 +160,7 @@ def main() -> int:
         if exec_result.stderr:
             print(exec_result.stderr, end="", file=sys.stderr)
         if exec_result.returncode != 0:
-            raise RuntimeError(f"opencode 执行失败，退出码={exec_result.returncode}")
+            raise RuntimeError(f"opencode execution failed, exit code={exec_result.returncode}")
 
         print(f"container_id={container.id}")
         return 0

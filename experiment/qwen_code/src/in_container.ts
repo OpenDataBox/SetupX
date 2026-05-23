@@ -20,7 +20,7 @@ function parseArgs(argv: string[]): CliArgs {
     const key = item.slice(2);
     const value = argv[i + 1];
     if (!value || value.startsWith("--")) {
-      throw new Error(`参数缺少取值: --${key}`);
+      throw new Error(`Argument is missing a value: --${key}`);
     }
     args.set(key, value);
     i += 1;
@@ -32,7 +32,7 @@ function parseArgs(argv: string[]): CliArgs {
   const taskPrompt = args.get("task-prompt");
 
   if (!repository || !repoUrl || !taskPrompt) {
-    throw new Error("缺少必需参数: --repository --repo-url --task-prompt");
+    throw new Error("Missing required arguments: --repository --repo-url --task-prompt");
   }
 
   return {
@@ -46,7 +46,7 @@ function parseArgs(argv: string[]): CliArgs {
 function requireEnv(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) {
-    throw new Error(`缺少环境变量: ${name}`);
+    throw new Error(`Missing environment variable: ${name}`);
   }
   return value;
 }
@@ -61,7 +61,7 @@ function runCommand(command: string, args: string[], cwd?: string): void {
     throw result.error;
   }
   if (typeof result.status === "number" && result.status !== 0) {
-    throw new Error(`命令失败: ${command} ${args.join(" ")}`);
+    throw new Error(`Command failed: ${command} ${args.join(" ")}`);
   }
 }
 
@@ -81,13 +81,13 @@ function buildPrompt(taskPrompt: string, repository: string): string {
   return [
     taskPrompt.trim(),
     "",
-    "额外实验要求：",
-    `1. 当前工作目录就是目标仓库 ${repository}，所有仓库配置、依赖安装和验证都必须在当前 Docker 容器内完成。`,
-    "2. 不要依赖宿主机已有环境，也不要假设仓库外部目录可写。",
-    "3. 优先根据仓库内 README、requirements、pyproject、package.json、Dockerfile、Makefile 等信息完成配置。",
-    "4. 尽可能运行仓库自带测试或最小可行验证命令，并如实报告结果。",
-    "5. 在结束前，明确说明你做了哪些关键改动、运行了哪些验证命令，以及是否仍有失败项。",
-    "6. 不要输出虚假的验证结论；如果失败，直接说明失败原因。",
+    "Additional experiment requirements:",
+    `1. The current working directory is the target repository ${repository}; all repository setup, dependency installation, and verification must be done inside the current Docker container.`,
+    "2. Do not rely on any pre-existing environment on the host, and do not assume that directories outside the repository are writable.",
+    "3. Prefer to complete the setup based on information inside the repository, such as README, requirements, pyproject, package.json, Dockerfile, Makefile, etc.",
+    "4. Run the repository's own tests or the minimal viable verification commands whenever possible, and report the results truthfully.",
+    "5. Before finishing, clearly state which key changes you made, which verification commands you ran, and whether any failures remain.",
+    "6. Do not output false verification conclusions; if something fails, state the cause of failure directly.",
   ].join("\n");
 }
 

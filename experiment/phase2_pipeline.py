@@ -1,5 +1,5 @@
 """
-experiment 专用的 Phase 2 诉讼裁决编排。
+Phase 2 prosecution-and-verdict orchestration dedicated to the experiment.
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ def run_phase2_review(
     prosecution = prosecutor.investigate()
 
     if not prosecution.prosecute:
-        judgment = {"verdict": "not_guilty", "reasoning": "检察官未发现实质问题"}
+        judgment = {"verdict": "not_guilty", "reasoning": "The prosecutor found no substantive issues"}
     else:
         judgment = JudgeAgent(
             setup_history=setup_history,
@@ -65,7 +65,7 @@ def build_external_tool_setup_history(
             "step": 1,
             "action": {
                 "action_type": "EXTERNAL_TOOL_RUN",
-                "thought": f"调用外部工具 {tool_name} 进行仓库配置",
+                "thought": f"Invoking external tool {tool_name} to set up the repository",
                 "content": {
                     "tool": tool_name,
                     "command": command,

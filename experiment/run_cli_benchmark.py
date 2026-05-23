@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-批量评测多个 CLI Agent 在仓库配置任务上的成功率。
+Batch-evaluate the success rate of multiple CLI agents on repository setup tasks.
 """
 
 from __future__ import annotations
@@ -28,40 +28,40 @@ from src.verifier_agent import VerifierAgent
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="运行 CLI 仓库配置基准测试")
+    parser = argparse.ArgumentParser(description="Run the CLI repository-setup benchmark")
     parser.add_argument(
         "--tools-config",
         default="experiment/configs/tools.json",
-        help="工具配置 JSON 路径",
+        help="Path to the tools configuration JSON",
     )
     parser.add_argument(
         "--repo-list",
         default="data/python329.jsonl",
-        help="仓库清单 JSONL 路径",
+        help="Path to the repository list JSONL",
     )
     parser.add_argument(
         "--prompt-file",
         default="experiment/prompts/repo_setup_task.txt",
-        help="任务提示词模板路径",
+        help="Path to the task prompt template",
     )
-    parser.add_argument("--limit", type=int, default=10, help="最多评测多少个仓库")
-    parser.add_argument("--timeout", type=int, default=3600, help="单次运行超时秒数")
+    parser.add_argument("--limit", type=int, default=10, help="Maximum number of repositories to evaluate")
+    parser.add_argument("--timeout", type=int, default=3600, help="Timeout in seconds for a single run")
     parser.add_argument(
         "--output-root",
         default="experiment/results",
-        help="结果根目录",
+        help="Root directory for results",
     )
     parser.add_argument(
         "--tool-parallelism",
         type=int,
         default=0,
-        help="每个仓库同时运行多少个 CLI 工具，0 表示按启用工具数自动设置",
+        help="How many CLI tools to run concurrently per repository; 0 means auto-set to the number of enabled tools",
     )
     return parser.parse_args()
 
 
 def build_run_dir(output_root: Path) -> Path:
-    # 用到微秒，避免同一秒内重复运行时目录冲突。
+    # Use microseconds to avoid directory collisions when running multiple times within the same second.
     run_dir = output_root / datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     run_dir.mkdir(parents=True, exist_ok=False)
     return run_dir
@@ -124,7 +124,7 @@ def render_template(template: str, mapping: dict[str, str]) -> str:
         return template.format(**mapping)
     except KeyError as exc:
         missing = exc.args[0]
-        raise ValueError(f"模板缺少变量: {missing}") from exc
+        raise ValueError(f"Template is missing variable: {missing}") from exc
 
 
 def judge_success(
@@ -141,13 +141,13 @@ def judge_success(
         return has_pattern
     if judge_mode == "return_code_and_pattern":
         return return_code == 0 and has_pattern
-    raise ValueError(f"不支持的 judge_mode: {judge_mode}")
+    raise ValueError(f"Unsupported judge_mode: {judge_mode}")
 
 
 def extract_pattern(pattern: str, text: str, label: str) -> str:
     match = re.search(pattern, text, re.MULTILINE)
     if not match:
-        raise ValueError(f"未能从输出中提取{label}，pattern={pattern}")
+        raise ValueError(f"Failed to extract {label} from the output, pattern={pattern}")
     if match.groups():
         return match.group(1).strip()
     return match.group(0).strip()
@@ -206,27 +206,27 @@ def run_verify(tool: dict[str, Any], output_text: str, command: str, return_code
         if output_mode == "container":
             pattern = tool.get("container_id_pattern", "").strip()
             if not pattern:
-                raise ValueError("output_mode=container 但未配置 container_id_pattern")
+                raise ValueError("output_mode=container but container_id_pattern is not configured")
             container_id = extract_pattern(pattern, output_text, "container_id")
             work_dir = tool.get("container_work_dir", "/workspace")
             env = EnvironmentManager.from_container(container_id, work_dir=work_dir)
-            verify_hint = f"当前项目根目录在容器内为 {work_dir}，请先在该目录做结构侦察，不要假设固定路径。"
+            verify_hint = f"The project root inside the container is {work_dir}; first explore its structure there and do not assume a fixed path."
             cleanup_mode = "destroy" if tool.get("destroy_container_after_verify", False) else "none"
         elif output_mode == "dockerfile":
             pattern = tool.get("dockerfile_dir_pattern", "").strip()
             if not pattern:
-                raise ValueError("output_mode=dockerfile 但未配置 dockerfile_dir_pattern")
+                raise ValueError("output_mode=dockerfile but dockerfile_dir_pattern is not configured")
             dockerfile_dir = extract_pattern(pattern, output_text, "dockerfile_dir")
             work_dir = tool.get("dockerfile_work_dir", "/repo")
             env = EnvironmentManager.from_dockerfile(dockerfile_dir, work_dir=work_dir)
-            verify_hint = f"当前项目根目录在容器内为 {work_dir}，请先在该目录做结构侦察，不要假设固定路径。"
+            verify_hint = f"The project root inside the container is {work_dir}; first explore its structure there and do not assume a fixed path."
             cleanup_mode = "destroy"
         else:
-            raise ValueError(f"verify_enabled=true 时不支持 output_mode={output_mode}")
+            raise ValueError(f"output_mode={output_mode} is not supported when verify_enabled=true")
 
         verifier = VerifierAgent(
             env,
-            setup_summary=f"工具={tool['name']}，命令={command}。项目根目录在容器内为 {work_dir}。",
+            setup_summary=f"tool={tool['name']}, command={command}. The project root inside the container is {work_dir}.",
             hint=verify_hint,
         )
         verify_result = verifier.verify()
@@ -433,7 +433,7 @@ def persist_row_artifacts(row: dict[str, Any]) -> dict[str, Any]:
     log_path = Path(row["log_path"])
     log_path.parent.mkdir(parents=True, exist_ok=True)
     if not log_path.exists():
-        error_text = row.get("verify_error") or row.get("phase2_error") or "运行异常退出"
+        error_text = row.get("verify_error") or row.get("phase2_error") or "Run exited abnormally"
         log_path.write_text(error_text + "\n", encoding="utf-8")
 
     result_path = repo_dir / "result.json"
@@ -468,7 +468,7 @@ def run_one_safe(
     except Exception as exc:
         duration_sec = round(time.time() - start_time, 2)
         error_text = (
-            f"运行异常: {exc}\n"
+            f"Run error: {exc}\n"
             f"{traceback.format_exc()}"
         )
         row = build_crash_row(
@@ -541,10 +541,10 @@ def write_incremental_outputs(run_dir: Path, rows: list[dict[str, Any]]) -> None
 
 def format_status(row: dict[str, Any]) -> str:
     if row["success"] is True:
-        return "成功"
+        return "success"
     if row["success"] is False:
-        return "失败"
-    return "异常/未判定"
+        return "failed"
+    return "error/undecided"
 
 
 def main() -> int:
@@ -554,23 +554,23 @@ def main() -> int:
     prompt_path = Path(args.prompt_file)
 
     if not tools_config_path.exists():
-        print(f"错误: 找不到工具配置文件 {tools_config_path}", file=sys.stderr)
+        print(f"Error: tools configuration file not found {tools_config_path}", file=sys.stderr)
         return 1
     if not repo_list_path.exists():
-        print(f"错误: 找不到仓库清单 {repo_list_path}", file=sys.stderr)
+        print(f"Error: repository list not found {repo_list_path}", file=sys.stderr)
         return 1
     if not prompt_path.exists():
-        print(f"错误: 找不到提示词模板 {prompt_path}", file=sys.stderr)
+        print(f"Error: prompt template not found {prompt_path}", file=sys.stderr)
         return 1
 
     tools = [tool for tool in read_json(tools_config_path) if tool.get("enabled", False)]
     if not tools:
-        print("错误: 没有启用任何工具，请先修改 tools.json", file=sys.stderr)
+        print("Error: no tools are enabled; please edit tools.json first", file=sys.stderr)
         return 1
 
     repos = read_jsonl(repo_list_path, args.limit)
     if not repos:
-        print("错误: 仓库清单为空", file=sys.stderr)
+        print("Error: the repository list is empty", file=sys.stderr)
         return 1
 
     prompt_template = prompt_path.read_text(encoding="utf-8")
@@ -588,12 +588,12 @@ def main() -> int:
         tool_dir = run_dir / sanitize_name(tool["name"])
         tool_dir.mkdir(parents=True, exist_ok=False)
 
-    print(f"开始评测，共 {len(repos)} 个仓库，{len(tools)} 个工具，每仓库并发 {tool_parallelism} 个工具")
+    print(f"Starting evaluation: {len(repos)} repositories, {len(tools)} tools, {tool_parallelism} tools concurrently per repository")
 
     try:
         for repo_obj in repos:
             repository = get_repository_name(repo_obj)
-            print(f"开始仓库: {repository}")
+            print(f"Starting repository: {repository}")
             with ThreadPoolExecutor(max_workers=tool_parallelism) as executor:
                 future_map = {}
                 for tool in tools:
@@ -615,7 +615,7 @@ def main() -> int:
                         row = future.result()
                     except Exception as exc:
                         repo_dir = build_repo_dir_path(run_dir, tool_name, repository)
-                        error_text = f"并发任务异常: {exc}\n{traceback.format_exc()}"
+                        error_text = f"Concurrent task error: {exc}\n{traceback.format_exc()}"
                         row = persist_row_artifacts(
                             build_crash_row(
                                 tool=next(item for item in tools if item["name"] == tool_name),
@@ -640,8 +640,8 @@ def main() -> int:
 
     raw_path = run_dir / "raw_results.jsonl"
     run_summary_path = run_dir / "summary.json"
-    print(f"原始结果已写入: {raw_path}")
-    print(f"run 汇总已写入: {run_summary_path}")
+    print(f"Raw results written to: {raw_path}")
+    print(f"Run summary written to: {run_summary_path}")
     return 0
 
 
