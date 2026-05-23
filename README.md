@@ -1,4 +1,4 @@
-<img width="1408" height="768" alt="SetupX architecture overview" src="https://github.com/user-attachments/assets/c86f538e-5c4c-4578-883e-b37d3da9214f" />
+<img width="1408" height="768" alt="SetupX architecture overview" src="assets/setupx_hero.jpg" />
 
 # SetupX
 
