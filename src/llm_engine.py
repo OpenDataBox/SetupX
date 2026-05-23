@@ -3,7 +3,7 @@
 Supports the ARK and OpenAI-compatible APIs. Logs full input / output for traceability.
 
 Responsibilities:
-  1. Wrap LLM API calls (ByteDance ARK and OpenAI-compatible backends).
+  1. Wrap LLM API calls (ARK and OpenAI-compatible backends).
   2. Build the system prompt (action definitions + XPU suggestions + current observation).
   3. Parse the LLM output into a structured AgentAction.
   4. XPU adaptation: turn a generic advice into a concrete command for the current repo.
@@ -54,7 +54,7 @@ class LLMClientBase(ABC):
 
 
 class ARKClient(LLMClientBase):
-    """ByteDance ARK API client.
+    """ARK API client.
 
     ARK is OpenAI-compatible but uses a separate base_url and a `deployment`
     name as the model identifier.
