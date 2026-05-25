@@ -1,3 +1,4 @@
+[framework.pdf](https://github.com/user-attachments/files/28204020/framework.pdf)
 <img width="1408" height="768" alt="SetupX architecture overview" src="assets/setupx_hero.jpg" />
 
 # SetupX
@@ -19,30 +20,23 @@ Unlike prior approaches that start each configuration from scratch, SetupX featu
 
 SetupX orchestrates repository configuration through three sequential phases:
 
-```
 Phase 1: Setup with In-Loop Verification
-┌─────────────────────────────────────────────────────┐
-│  Speculative Setup Agent (ReAct loop)               │
-│    ├── Observe environment state                    │
-│    ├── Retriever Agent → XPU two-layer retrieval    │
-│    ├── LLM decision → Action selection              │
-│    ├── Docker execution (with snapshot/rollback)    │
-│    └── Verifier Agent → test suite verification     │
-└─────────────────────────────────────────────────────┘
-                         ↓
-Phase 2: Adversarial Verification
-┌─────────────────────────────────────────────────────┐
-│  Prosecutor Agent → investigate & file charges      │
-│  Judge Agent      → verify each charge independently│
-│  Verdict: guilty / not_guilty                       │
-└─────────────────────────────────────────────────────┘
-                         ↓
-Phase 3: Experience Extraction
-┌─────────────────────────────────────────────────────┐
-│  Extract transferable XPU from agent trajectory     │
-│  Deduplicate & ingest into XPU library              │
-└─────────────────────────────────────────────────────┘
-```
+ Speculative Setup Agent (ReAct loop):               
+     Observe environment state                    
+     Retriever Agent → XPU two-layer retrieval    
+     LLM decision → Action selection              
+     Docker execution (with snapshot/rollback)    
+     Verifier Agent → test suite verification     
+
+Phase 2: Adversarial Verification:
+  Prosecutor Agent → investigate & file charges      
+  Judge Agent      → verify each charge independently
+  Verdict: guilty / not_guilty                       
+
+Phase 3: Experience Extraction:
+  Extract transferable XPU from agent trajectory     
+  Deduplicate & ingest into XPU library              
+
 
 ### Key Components
 
