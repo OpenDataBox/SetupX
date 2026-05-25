@@ -74,7 +74,7 @@ def _get_env_int(key: str, default: int) -> int:
 
 
 def load_config() -> Config:
-    llm_provider = _get_env("LLM_PROVIDER", "ark")
+    llm_provider = _get_env("LLM_PROVIDER", "openai")
     if llm_provider not in ("ark", "openai"):
         raise ValueError(f"unsupported LLM provider: {llm_provider}; expected 'ark' or 'openai'")
 

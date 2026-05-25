@@ -45,7 +45,7 @@ _results_lock = threading.Lock()
 
 
 def discover_projects() -> list[dict]:
-    """从 ours_44_overlap.jsonl 加载 44 个 repo，匹配 R2R 产出"""
+    """Load the 44 repos from ours_44_overlap.jsonl and match them to R2R outputs."""
     projects = []
     with open(OVERLAP_FILE) as f:
         for line in f:
@@ -54,7 +54,7 @@ def discover_projects() -> list[dict]:
             owner, name = full.split("/")
             repo_dir = R2R_ROOT / owner / name
             if not repo_dir.exists():
-                # 尝试搜索其他 owner 目录
+                # Try searching other owner directories
                 found = False
                 for d_name in os.listdir(R2R_ROOT):
                     p = R2R_ROOT / d_name / name
@@ -64,12 +64,12 @@ def discover_projects() -> list[dict]:
                         found = True
                         break
                 if not found:
-                    logger.warning(f"[{name}] R2R 产出不存在，跳过")
+                    logger.warning(f"[{name}] R2R output does not exist, skipping")
                     continue
 
             dockerfile = repo_dir / "Dockerfile"
             if not dockerfile.exists():
-                logger.warning(f"[{name}] 无 Dockerfile，跳过")
+                logger.warning(f"[{name}] no Dockerfile, skipping")
                 continue
 
             test_txt = repo_dir / "test.txt"
@@ -87,7 +87,7 @@ def discover_projects() -> list[dict]:
 
 
 def build_image(project: dict) -> str | None:
-    """构建 Docker 镜像"""
+    """Build the Docker image."""
     image_name = f"r2r_eval/{project['name']}".lower()
 
     result = subprocess.run(
@@ -95,30 +95,30 @@ def build_image(project: dict) -> str | None:
         capture_output=True, text=True,
     )
     if result.stdout.strip():
-        logger.info(f"[{project['name']}] 镜像已存在: {image_name}")
+        logger.info(f"[{project['name']}] image already exists: {image_name}")
         return image_name
 
-    logger.info(f"[{project['name']}] 开始构建镜像: {image_name}")
+    logger.info(f"[{project['name']}] starting image build: {image_name}")
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
-            # R2R Dockerfile 有 COPY code_edit.py / search_patch，需要创建空文件
+            # The R2R Dockerfile has COPY code_edit.py / search_patch, so create empty files
             (Path(tmpdir) / "code_edit.py").write_text("")
             (Path(tmpdir) / "search_patch").write_text("")
-            # 复制 Dockerfile，移除或保留 COPY 行（空文件足矣）
+            # Copy the Dockerfile; the COPY lines can stay (empty files suffice)
             shutil.copy(project["dockerfile"], Path(tmpdir) / "Dockerfile")
             result = subprocess.run(
                 ["docker", "build", "-t", image_name, tmpdir],
                 capture_output=True, text=True, timeout=1800,
             )
     except subprocess.TimeoutExpired:
-        logger.warning(f"[{project['name']}] 构建超时（30分钟）")
+        logger.warning(f"[{project['name']}] build timed out (30 minutes)")
         return None
 
     if result.returncode != 0:
-        logger.warning(f"[{project['name']}] 构建失败:\n{result.stderr[-500:]}")
+        logger.warning(f"[{project['name']}] build failed:\n{result.stderr[-500:]}")
         return None
 
-    logger.info(f"[{project['name']}] 镜像构建成功")
+    logger.info(f"[{project['name']}] image built successfully")
     return image_name
 
 
@@ -128,16 +128,16 @@ def start_container(image_name: str) -> str | None:
         capture_output=True, text=True,
     )
     if result.returncode != 0:
-        logger.warning(f"启动容器失败: {result.stderr}")
+        logger.warning(f"Failed to start container: {result.stderr}")
         return None
     cid = result.stdout.strip()
-    logger.info(f"容器已启动: {cid[:12]}")
+    logger.info(f"Container started: {cid[:12]}")
     return cid
 
 
 def stop_container(container_id: str) -> None:
     subprocess.run(["docker", "rm", "-f", container_id], capture_output=True)
-    logger.info(f"容器已销毁: {container_id[:12]}")
+    logger.info(f"Container destroyed: {container_id[:12]}")
 
 
 def exec_in_container(container_id: str, cmd: str, timeout: int = 600) -> tuple[int, str]:
@@ -149,14 +149,14 @@ def exec_in_container(container_id: str, cmd: str, timeout: int = 600) -> tuple[
 
 
 def find_repo_dir(container_id: str) -> str:
-    """R2R 统一 clone 到 /repo"""
+    """R2R always clones to /repo."""
     exit_code, output = exec_in_container(
         container_id, "test -d /repo/.git && echo FOUND", timeout=10,
     )
     if "FOUND" in output:
         return "/repo"
 
-    # 回退搜索
+    # Fallback search
     exit_code, output = exec_in_container(
         container_id,
         "find / -maxdepth 3 -name '.git' -type d "
@@ -176,17 +176,17 @@ def build_setup_history(project: dict) -> list[dict]:
     if project["test_txt"]:
         test_content = project["test_txt"].read_text(errors="replace")
         if len(test_content) > 3000:
-            test_content = test_content[:1500] + "\n...[截断]...\n" + test_content[-1500:]
+            test_content = test_content[:1500] + "\n...[truncated]...\n" + test_content[-1500:]
 
     context = f"=== Repo2Run Dockerfile for {project['name']} ===\n{dockerfile_content}"
     if test_content:
-        context += f"\n\n=== R2R test.txt（测试用例列表）===\n{test_content}"
+        context += f"\n\n=== R2R test.txt (list of test cases) ===\n{test_content}"
 
     return [{
         "step": 0,
         "action": {
             "action_type": "CONTEXT",
-            "thought": "以下是 Repo2Run (R2R) 生成的 Dockerfile 和测试列表",
+            "thought": "The following is the Dockerfile and test list generated by Repo2Run (R2R).",
             "content": {},
         },
         "result": {
@@ -201,9 +201,9 @@ def build_verify_messages(project: dict) -> list[dict]:
     return [{
         "role": "user",
         "content": (
-            "这是 Repo2Run (R2R) 配置的环境。"
-            "R2R 是一个基于 LLM 的自动化仓库环境配置工具。\n\n"
-            "请用我们的标准调查：核心依赖是否可导入？测试是否能实际运行？"
+            "This is an environment configured by Repo2Run (R2R). "
+            "R2R is an LLM-based automated repository environment configuration tool.\n\n"
+            "Please investigate using our criteria: are the core dependencies importable? Can the tests actually run?"
         ),
     }]
 
@@ -223,48 +223,48 @@ def evaluate_repo(project: dict) -> dict:
 
     name = project["name"]
 
-    # 1. 构建镜像
+    # 1. Build the image
     image_name = build_image(project)
     if not image_name:
-        result["reason"] = "Docker 构建失败"
+        result["reason"] = "Docker build failed"
         return result
     result["build_ok"] = True
 
-    # 2. 启动容器
+    # 2. Start the container
     container_id = start_container(image_name)
     if not container_id:
-        result["reason"] = "容器启动失败"
+        result["reason"] = "Failed to start container"
         return result
 
     try:
-        # R2R 不需要额外 install.sh，Dockerfile 已完成所有安装
+        # R2R needs no extra install.sh; the Dockerfile has completed all installation
         result["install_ok"] = True
 
-        # 3. 找仓库目录
+        # 3. Locate the repository directory
         repo_dir = find_repo_dir(container_id)
-        logger.info(f"[{name}] 仓库目录: {repo_dir}")
+        logger.info(f"[{name}] repository directory: {repo_dir}")
 
-        # 4. 接管容器
+        # 4. Take over the container
         env = EnvironmentManager()
         env.attach(container_id, repo_dir=repo_dir)
 
         setup_history = build_setup_history(project)
         verify_messages = build_verify_messages(project)
 
-        # 5. 检察官调查
-        logger.info(f"[{name}] 检察官开始调查")
+        # 5. Prosecutor investigation
+        logger.info(f"[{name}] prosecutor starting investigation")
         prosecutor = ProsecutorAgent(env, setup_history, verify_messages)
         prosecution = prosecutor.investigate()
         result["prosecute"] = prosecution.prosecute
         result["charges"] = prosecution.charges
-        logger.info(f"[{name}] 检察官结论: prosecute={prosecution.prosecute}, 指控数={len(prosecution.charges)}")
+        logger.info(f"[{name}] prosecutor conclusion: prosecute={prosecution.prosecute}, charges={len(prosecution.charges)}")
 
         if not prosecution.prosecute:
             result["verdict"] = "not_guilty"
-            result["reason"] = "检察官未起诉"
+            result["reason"] = "Prosecutor did not prosecute"
         else:
-            # 6. 法官裁决
-            logger.info(f"[{name}] 法官开始裁决")
+            # 6. Judge adjudication
+            logger.info(f"[{name}] judge starting adjudication")
             judgment = JudgeAgent(
                 setup_history,
                 verify_messages,
@@ -273,11 +273,11 @@ def evaluate_repo(project: dict) -> dict:
             ).rule()
             result["verdict"] = judgment["verdict"]
             result["reason"] = judgment["reasoning"]
-            logger.info(f"[{name}] 法官裁决: {judgment['verdict']}")
+            logger.info(f"[{name}] judge verdict: {judgment['verdict']}")
 
     except Exception as e:
-        logger.warning(f"[{name}] 评估异常: {e}")
-        result["reason"] = f"评估异常: {e}"
+        logger.warning(f"[{name}] evaluation error: {e}")
+        result["reason"] = f"evaluation error: {e}"
     finally:
         stop_container(container_id)
 
@@ -295,13 +295,13 @@ def _run_one(project: dict, results: list[dict], output_path: Path, total: int) 
     try:
         result = evaluate_repo(project)
     except Exception as e:
-        logger.error(f"[{name}] 未捕获异常: {e}")
+        logger.error(f"[{name}] uncaught exception: {e}")
         result = {
             "repo": name, "full": project["full"],
             "repo_url": project["repo_url"],
             "build_ok": False, "install_ok": False,
             "prosecute": None, "charges": [], "verdict": None,
-            "reason": f"未捕获异常: {e}",
+            "reason": f"uncaught exception: {e}",
         }
 
     with _results_lock:
@@ -318,17 +318,17 @@ def _run_one(project: dict, results: list[dict], output_path: Path, total: int) 
 
 
 def main():
-    parser = argparse.ArgumentParser(description="评估 R2R 44 个重合 repo")
+    parser = argparse.ArgumentParser(description="Evaluate the 44 overlapping R2R repos")
     parser.add_argument("--repos", type=str, default=None,
-                        help="逗号分隔的项目名，默认全部")
+                        help="comma-separated project names; default is all")
     parser.add_argument("--workers", type=int, default=1,
-                        help="并行 worker 数")
+                        help="number of parallel workers")
     parser.add_argument("--output", type=str, default=None,
-                        help="输出文件路径")
+                        help="output file path")
     args = parser.parse_args()
 
     all_projects = discover_projects()
-    logger.info(f"发现 {len(all_projects)} 个 R2R 项目")
+    logger.info(f"Found {len(all_projects)} R2R projects")
 
     if args.repos:
         selected = {r.strip() for r in args.repos.split(",")}
@@ -337,19 +337,19 @@ def main():
     output_path = Path(args.output) if args.output else OUTPUT_DIR / "r2r_overlap44_eval.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 断点续跑
+    # Resume support
     existing_results = {}
     if output_path.exists():
         try:
             for r in json.load(open(output_path, encoding="utf-8")):
                 existing_results[r["repo"]] = r
-            logger.info(f"已加载 {len(existing_results)} 条历史结果")
+            logger.info(f"Loaded {len(existing_results)} historical results")
         except Exception as e:
-            logger.warning(f"加载历史结果失败: {e}")
+            logger.warning(f"Failed to load historical results: {e}")
 
     results = list(existing_results.values())
     pending = [p for p in all_projects if p["name"] not in existing_results]
-    logger.info(f"待评估 {len(pending)} 个项目（已有 {len(existing_results)} 条历史结果），workers={args.workers}")
+    logger.info(f"{len(pending)} projects pending ({len(existing_results)} historical results already present), workers={args.workers}")
 
     if args.workers <= 1:
         for project in pending:
@@ -365,13 +365,13 @@ def main():
                 try:
                     future.result()
                 except Exception as e:
-                    logger.error(f"[{name}] worker 异常: {e}")
+                    logger.error(f"[{name}] worker error: {e}")
 
     _save_results(results, output_path)
 
-    # 汇总
+    # Summary
     print(f"\n{'='*60}")
-    print("R2R 44 Repo 评估汇总")
+    print("R2R 44-Repo evaluation summary")
     print(f"{'='*60}")
     total = len(results)
     build_ok = sum(1 for r in results if r.get("build_ok"))
@@ -379,13 +379,13 @@ def main():
     guilty = sum(1 for r in results if r.get("verdict") == "guilty")
     no_verdict = total - not_guilty - guilty
 
-    print(f"总数: {total}")
-    print(f"构建成功: {build_ok}")
+    print(f"Total: {total}")
+    print(f"Builds succeeded: {build_ok}")
     print(f"not_guilty: {not_guilty}")
     print(f"guilty: {guilty}")
-    print(f"无裁决: {no_verdict}")
-    print(f"通过率: {not_guilty}/{total} = {not_guilty/total*100:.0f}%" if total else "N/A")
-    print(f"\n结果已写入: {output_path}")
+    print(f"No verdict: {no_verdict}")
+    print(f"Pass rate: {not_guilty}/{total} = {not_guilty/total*100:.0f}%" if total else "N/A")
+    print(f"\nResults written to: {output_path}")
 
 
 if __name__ == "__main__":

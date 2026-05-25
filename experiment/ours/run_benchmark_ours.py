@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-用 src.main 并行跑 benchmark100，每次最多 N 个仓库并发。
-用法:
+Run benchmark100 in parallel with src.main, with at most N repositories
+running concurrently at a time.
+Usage:
     python experiment/ours/run_benchmark_ours.py \
         --repo-list data/benchmark100.jsonl \
         --output-dir experiment/results_benchmark100_ours_no_xpu \
@@ -43,7 +44,7 @@ def run_one(repo: dict, output_dir: Path, no_xpu: bool, phase1_timeout: int) -> 
         repository = repository.split("/")[-1]
     started_at = time.time()
 
-    # 每个仓库独立子文件夹
+    # A separate subfolder per repository
     repo_dir = output_dir / repository
     repo_dir.mkdir(parents=True, exist_ok=True)
 
@@ -69,7 +70,7 @@ def run_one(repo: dict, output_dir: Path, no_xpu: bool, phase1_timeout: int) -> 
                 env=env,
                 stdout=log_f,
                 stderr=subprocess.STDOUT,
-                timeout=None,      # 外层不限时，Phase 1 内部已有 signal.alarm
+                timeout=None,      # No outer timeout; Phase 1 already has its own signal.alarm
             )
         return_code = proc.returncode
         success = return_code == 0
@@ -77,11 +78,11 @@ def run_one(repo: dict, output_dir: Path, no_xpu: bool, phase1_timeout: int) -> 
         return_code = -1
         success = False
         with open(log_path, "a") as f:
-            f.write(f"\n[benchmark] 异常: {e}\n")
+            f.write(f"\n[benchmark] Exception: {e}\n")
 
     duration = time.time() - started_at
 
-    # 读 main.py 写入的 result json
+    # Read the result json written by main.py
     result_json_path = repo_dir / f"{repository}_result.json"
     phase2_verdict = None
     phase2_reason = None
@@ -119,7 +120,7 @@ def main() -> None:
 
     results_path = output_dir / "raw_results.jsonl"
 
-    # 跳过已有结果的仓库（支持断点续跑）
+    # Skip repositories that already have results (supports resuming)
     done_repos = set()
     if results_path.exists():
         for line in results_path.read_text().splitlines():
@@ -142,11 +143,11 @@ def main() -> None:
         todo.append(repo)
 
     if not todo:
-        print(f"[benchmark] 所有 {len(repos)} 个仓库已完成，无需重跑")
+        print(f"[benchmark] All {len(repos)} repositories are already complete; nothing to rerun")
         return
 
-    print(f"[benchmark] 仓库数={len(repos)}, 跳过={len(repos)-len(todo)}, 待跑={len(todo)}, 并发={args.parallelism}, phase1_timeout={args.phase1_timeout}s")
-    print(f"[benchmark] 结果目录: {output_dir}")
+    print(f"[benchmark] repos={len(repos)}, skipped={len(repos)-len(todo)}, to_run={len(todo)}, parallelism={args.parallelism}, phase1_timeout={args.phase1_timeout}s")
+    print(f"[benchmark] Results directory: {output_dir}")
 
     completed = 0
     success_count = 0
@@ -165,7 +166,7 @@ def main() -> None:
             status = "✓" if result["success"] else "✗"
             print(f"[{completed}/{len(todo)}] {status} {result['repository']} ({result['duration_sec']:.0f}s)")
 
-    print(f"\n[benchmark] 完成: 成功={success_count}/{len(todo)}")
+    print(f"\n[benchmark] Done: succeeded={success_count}/{len(todo)}")
 
 
 if __name__ == "__main__":

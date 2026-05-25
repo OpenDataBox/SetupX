@@ -1,17 +1,17 @@
-你是一个 CLI Agent，需要完成一个“仓库配置”任务。
+You are a CLI agent tasked with completing a "repository setup" task.
 
-目标仓库：
+Target repository:
 - repository: {repository}
 - repo_url: {repo_url}
 - revision: {revision}
 
-任务目标：
-1. 获取并理解仓库结构与说明文档。
-2. 完成依赖安装、环境配置和必要的初始化步骤。
-3. 尽可能运行仓库自带的测试、验证命令或最小可行检查。
-4. 如果验证通过，明确输出成功结论；如果失败，明确输出失败原因。
+Task goals:
+1. Fetch and understand the repository structure and its documentation.
+2. Complete dependency installation, environment configuration, and any necessary initialization steps.
+3. Run the repository's own tests, verification commands, or a minimal viable check whenever possible.
+4. If verification passes, clearly state a success conclusion; if it fails, clearly state the reason for failure.
 
-约束要求：
-1. 优先使用仓库内已有的 README、Makefile、requirements、pyproject、package.json、Dockerfile 等信息。
-2. 不要伪造测试结果。
-3. 输出中保留关键命令和最终状态。
+Constraints:
+1. Prioritize information already present in the repository, such as the README, Makefile, requirements, pyproject, package.json, Dockerfile, etc.
+2. Do not fabricate test results.
+3. Preserve the key commands and the final status in your output.

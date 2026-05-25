@@ -1,5 +1,5 @@
 """
-将外部 CLI 工具日志解析为 Phase 2 可消费的 setup_history。
+Parse external CLI tool logs into a setup_history that Phase 2 can consume.
 """
 
 from __future__ import annotations
@@ -84,7 +84,7 @@ def _build_entry(
 
 
 def parse_opencode_setup_history(tool_name: str, output_text: str) -> list[dict[str, Any]]:
-    """解析 OpenCode 新日志里的 session_message/result/command_executed 事件。"""
+    """Parse session_message/result/command_executed events from the newer OpenCode logs."""
     entries: list[dict[str, Any]] = []
     step = 1
 
@@ -137,7 +137,7 @@ def parse_opencode_setup_history(tool_name: str, output_text: str) -> list[dict[
             entries.append(_build_entry(
                 step=step,
                 action_type="EXTERNAL_TOOL_COMMAND",
-                thought="OpenCode 执行命令事件",
+                thought="OpenCode command-executed event",
                 content={
                     "tool": tool_name,
                     "session_id": event.get("session_id"),
@@ -210,7 +210,7 @@ def _collect_claude_blocks(blocks: list[dict[str, Any]]) -> tuple[str, list[dict
 
 
 def parse_claude_setup_history(tool_name: str, output_text: str) -> list[dict[str, Any]]:
-    """解析 Claude Code stream-json 日志。"""
+    """Parse Claude Code stream-json logs."""
     entries: list[dict[str, Any]] = []
     step = 1
 
@@ -241,7 +241,7 @@ def parse_claude_setup_history(tool_name: str, output_text: str) -> list[dict[st
                 entries.append(_build_entry(
                     step=step,
                     action_type=action_type,
-                    thought=text_content or "Claude Code assistant 事件",
+                    thought=text_content or "Claude Code assistant event",
                     content={
                         "tool": tool_name,
                         "session_id": event.get("session_id"),
@@ -258,7 +258,7 @@ def parse_claude_setup_history(tool_name: str, output_text: str) -> list[dict[st
                 entries.append(_build_entry(
                     step=step,
                     action_type="EXTERNAL_TOOL_RESULT",
-                    thought="Claude Code 工具执行结果",
+                    thought="Claude Code tool execution result",
                     content={
                         "tool": tool_name,
                         "session_id": event.get("session_id"),
@@ -277,7 +277,7 @@ def parse_claude_setup_history(tool_name: str, output_text: str) -> list[dict[st
             entries.append(_build_entry(
                 step=step,
                 action_type="EXTERNAL_TOOL_FINISH",
-                thought="Claude Code 最终结果",
+                thought="Claude Code final result",
                 content={
                     "tool": tool_name,
                     "session_id": event.get("session_id"),
@@ -325,7 +325,7 @@ def _collect_qwen_blocks(blocks: list[dict[str, Any]]) -> tuple[str, str, list[d
 
 
 def parse_qwen_setup_history(tool_name: str, output_text: str) -> list[dict[str, Any]]:
-    """解析 Qwen Code query() 流式 JSON 日志。"""
+    """Parse the streaming JSON logs from Qwen Code's query()."""
     entries: list[dict[str, Any]] = []
     step = 1
 
@@ -356,7 +356,7 @@ def parse_qwen_setup_history(tool_name: str, output_text: str) -> list[dict[str,
                 entries.append(_build_entry(
                     step=step,
                     action_type=action_type,
-                    thought=thought or text_content or "Qwen Code assistant 事件",
+                    thought=thought or text_content or "Qwen Code assistant event",
                     content={
                         "tool": tool_name,
                         "session_id": event.get("session_id"),
@@ -373,7 +373,7 @@ def parse_qwen_setup_history(tool_name: str, output_text: str) -> list[dict[str,
                 entries.append(_build_entry(
                     step=step,
                     action_type="EXTERNAL_TOOL_RESULT",
-                    thought="Qwen Code 工具执行结果",
+                    thought="Qwen Code tool execution result",
                     content={
                         "tool": tool_name,
                         "session_id": event.get("session_id"),
@@ -392,7 +392,7 @@ def parse_qwen_setup_history(tool_name: str, output_text: str) -> list[dict[str,
             entries.append(_build_entry(
                 step=step,
                 action_type="EXTERNAL_TOOL_FINISH",
-                thought="Qwen Code 最终结果",
+                thought="Qwen Code final result",
                 content={
                     "tool": tool_name,
                     "session_id": event.get("session_id"),

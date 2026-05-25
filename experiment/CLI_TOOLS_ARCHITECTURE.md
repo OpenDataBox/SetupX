@@ -1,261 +1,261 @@
-# experiment 中三个 CLI 工具的实现架构
+# Implementation Architecture of the Three CLI Tools in experiment
 
-本文总结 `experiment/` 目录下三个 CLI 工具包装器的实现方式。这里的三个工具分别是：
+This document summarizes how the three CLI tool wrappers under the `experiment/` directory are implemented. The three tools are:
 
 - `claude_code`
 - `open_code`
 - `qwen_code`
 
-它们的目标一致：在统一实验框架里，接收同一份仓库配置任务，在隔离容器中完成仓库 setup，并把最终容器交给主项目已有的验证链路复用。
+They share the same goal: within a unified experiment framework, accept the same repository setup task, complete the repository setup in an isolated container, and hand off the final container for reuse by the main project's existing verification pipeline.
 
-## 1. 总体分层
+## 1. Overall Layering
 
-从整体上看，这三套实现都遵循相同的四层架构：
+At a high level, all three implementations follow the same four-layer architecture:
 
-1. 实验调度层  
-   由 [`experiment/run_cli_benchmark.py`](experiment/run_cli_benchmark.py) 负责。它读取工具配置、仓库列表和统一 prompt，按工具逐个触发 launcher。
+1. Experiment scheduling layer
+   Handled by [`experiment/run_cli_benchmark.py`](experiment/run_cli_benchmark.py). It reads the tool configuration, repository list, and unified prompt, and triggers launchers one tool at a time.
 
-2. Python launcher 层  
-   分别由下面三个脚本负责：
+2. Python launcher layer
+   Handled respectively by the following three scripts:
    - [`experiment/claude_code/launch_claude_code.py`](experiment/claude_code/launch_claude_code.py)
    - [`experiment/opencode/launch_opencode.py`](experiment/opencode/launch_opencode.py)
    - [`experiment/qwen_code/launch_qwen_code.py`](experiment/qwen_code/launch_qwen_code.py)
 
-   这一层负责加载 `.env`、构建或复用基础镜像、启动独立 Docker 容器，并通过 `docker exec` 进入容器执行内部 runner。
+   This layer is responsible for loading `.env`, building or reusing the base image, starting an isolated Docker container, and entering the container via `docker exec` to run the internal runner.
 
-3. 容器内 TypeScript runner 层  
-   分别由以下文件实现：
+3. In-container TypeScript runner layer
+   Implemented respectively by the following files:
    - [`experiment/claude_code/src/in_container.ts`](experiment/claude_code/src/in_container.ts)
    - [`experiment/opencode/src/in_container.ts`](experiment/opencode/src/in_container.ts)
    - [`experiment/qwen_code/src/in_container.ts`](experiment/qwen_code/src/in_container.ts)
 
-   这一层负责在容器内 clone 目标仓库、拼接实验 prompt，并调用具体 CLI/SDK 执行仓库配置任务。
+   This layer is responsible for cloning the target repository inside the container, assembling the experiment prompt, and invoking the specific CLI/SDK to run the repository setup task.
 
-4. 统一验证层  
-   launcher 成功后会打印 `container_id=<id>`，随后 [`experiment/run_cli_benchmark.py`](experiment/run_cli_benchmark.py) 通过 `EnvironmentManager.from_container()` 接管该容器，再调用 `VerifierAgent.verify()` 做统一黑箱验证。
+4. Unified verification layer
+   After the launcher succeeds, it prints `container_id=<id>`. [`experiment/run_cli_benchmark.py`](experiment/run_cli_benchmark.py) then takes over the container via `EnvironmentManager.from_container()` and calls `VerifierAgent.verify()` to run unified black-box verification.
 
-这意味着：三个工具虽然调用方式不同，但都被收敛到“输出可接管容器”这一统一协议上。
+This means: although the three tools are invoked differently, they all converge onto the unified protocol of "producing a container that can be taken over".
 
-## 2. 统一执行链路
+## 2. Unified Execution Pipeline
 
-一次单仓库实验的调用链基本如下：
+The call chain for a single-repository experiment is essentially as follows:
 
-1. `run_cli_benchmark.py` 读取 `tools.json` 中的 `command_template`。
-2. 调度脚本将 `{repo_url}`、`{revision}`、`{task_prompt_path}` 等变量渲染到命令模板。
-3. 对应 launcher 启动：
-   - 校验所需环境变量
-   - 检查基础镜像是否存在，不存在则 `docker build`
-   - `docker run` 启动一个长期存活的 sandbox 容器（`sleep infinity`）
-   - `docker exec <container> npm run benchmark-internal -- ...` 执行容器内 runner
-4. 容器内 runner：
-   - 解析 CLI 参数
-   - 清空并重建工作目录
-   - `git clone` 目标仓库并可选 checkout revision
-   - 将统一任务 prompt 追加实验约束
-   - 调用对应 CLI/SDK 执行任务
-5. launcher 若执行成功，则输出 `container_id=<container.id>`。
-6. 主调度脚本提取 `container_id`，进入统一 verifier 流程。
+1. `run_cli_benchmark.py` reads the `command_template` from `tools.json`.
+2. The scheduling script renders variables such as `{repo_url}`, `{revision}`, and `{task_prompt_path}` into the command template.
+3. The corresponding launcher starts:
+   - Validates the required environment variables
+   - Checks whether the base image exists, running `docker build` if not
+   - `docker run` starts a long-lived sandbox container (`sleep infinity`)
+   - `docker exec <container> npm run benchmark-internal -- ...` runs the in-container runner
+4. The in-container runner:
+   - Parses CLI arguments
+   - Cleans and rebuilds the working directory
+   - Runs `git clone` on the target repository and optionally checks out the revision
+   - Appends experiment constraints to the unified task prompt
+   - Invokes the corresponding CLI/SDK to run the task
+5. If the launcher executes successfully, it prints `container_id=<container.id>`.
+6. The main scheduling script extracts `container_id` and enters the unified verifier flow.
 
-因此，这套设计的核心不是直接比较不同 CLI 的原始输出，而是比较“它们最终是否能把仓库配置到可通过统一验证”的能力。
+Therefore, the core of this design is not to directly compare the raw output of different CLIs, but to compare "whether they can ultimately configure the repository to a state that passes unified verification".
 
-## 3. 三个工具的共同实现模式
+## 3. Shared Implementation Patterns Across the Three Tools
 
-### 3.1 共同的基础镜像策略
+### 3.1 Shared Base Image Strategy
 
-三个工具都提供各自的 Dockerfile：
+All three tools provide their own Dockerfile:
 
 - [`experiment/claude_code/Dockerfile`](experiment/claude_code/Dockerfile)
 - [`experiment/opencode/Dockerfile`](experiment/opencode/Dockerfile)
 - [`experiment/qwen_code/Dockerfile`](experiment/qwen_code/Dockerfile)
 
-共同点：
+Common points:
 
-- 基础镜像统一为 `node:20-bookworm`
-- 预装 `git`、`python3`、`make`、`g++` 等常见构建依赖
-- 把本工具目录下的 `package.json`、`tsconfig.json`、`src/` 拷入 `/runner`
-- 通过 `npm install` 安装内部 runner 依赖
-- 通过 `npm install -g` 安装对应 CLI
-- 默认容器命令为 `sleep infinity`，便于后续 `docker exec`
+- The base image is uniformly `node:20-bookworm`
+- Common build dependencies such as `git`, `python3`, `make`, and `g++` are preinstalled
+- The tool directory's `package.json`, `tsconfig.json`, and `src/` are copied into `/runner`
+- Internal runner dependencies are installed via `npm install`
+- The corresponding CLI is installed via `npm install -g`
+- The default container command is `sleep infinity`, to facilitate subsequent `docker exec`
 
-这说明基础镜像只负责提供“可运行该 CLI agent 的标准沙箱”，而不是直接在镜像构建阶段执行实验任务。
+This shows that the base image is only responsible for providing a "standard sandbox capable of running the CLI agent", rather than executing the experiment task during the image build stage.
 
-### 3.2 共同的 launcher 模式
+### 3.2 Shared Launcher Pattern
 
-三个 launcher 都采用 Python 负责外部编排，原因很明确：
+All three launchers use Python for external orchestration, for clear reasons:
 
-- 更容易复用当前项目里已有的 `.env`、Docker SDK 和 Python 验证逻辑
-- 更适合作为 `run_cli_benchmark.py` 的直接子进程被调度
-- 成功后能够稳定输出 `container_id=...` 供主流程解析
+- It is easier to reuse the project's existing `.env`, Docker SDK, and Python verification logic
+- It is better suited to being scheduled as a direct subprocess of `run_cli_benchmark.py`
+- It can reliably print `container_id=...` on success for the main pipeline to parse
 
-launcher 的共同行为包括：
+The launchers share the following behavior:
 
 - `load_dotenv(PROJECT_ROOT / ".env", override=True)`
-- `ensure_base_image(...)` 负责镜像存在性检查和必要时重建
-- `client.containers.run(...)` 启动隔离容器
-- `run_exec(...)` 用 `docker exec` 调用容器内的 `npm run benchmark-internal`
-- 失败时删除当前 sandbox 容器，成功时保留容器并把容器 ID 暴露给 verifier
+- `ensure_base_image(...)` handles image existence checks and rebuilds when necessary
+- `client.containers.run(...)` starts the isolated container
+- `run_exec(...)` calls the in-container `npm run benchmark-internal` via `docker exec`
+- On failure, deletes the current sandbox container; on success, keeps the container and exposes the container ID to the verifier
 
-### 3.3 共同的容器内 runner 模式
+### 3.3 Shared In-Container Runner Pattern
 
-三个 `src/in_container.ts` 的结构非常接近，基本都有以下职责：
+The structure of the three `src/in_container.ts` files is very similar, generally with the following responsibilities:
 
-- `parseArgs`：解析 `--repository`、`--repo-url`、`--revision`、`--task-prompt`
-- `prepareWorkspace`：创建工作目录，clone 仓库并 checkout 指定 revision
-- `buildPrompt`：将统一任务提示词和额外实验要求拼接
-- `runSession` / `runClaude`：调用目标 agent
-- 顶层 `main()`：串起整个容器内流程
+- `parseArgs`: parses `--repository`, `--repo-url`, `--revision`, `--task-prompt`
+- `prepareWorkspace`: creates the working directory, clones the repository, and checks out the specified revision
+- `buildPrompt`: concatenates the unified task prompt with additional experiment requirements
+- `runSession` / `runClaude`: invokes the target agent
+- Top-level `main()`: ties the entire in-container flow together
 
-三者都把“仓库准备”和“agent 调用”清晰分离，因此替换底层模型工具时，不需要改动调度层和验证层。
+All three cleanly separate "repository preparation" from "agent invocation", so replacing the underlying model tool does not require changes to the scheduling layer or verification layer.
 
-## 4. Claude Code 架构
+## 4. Claude Code Architecture
 
-Claude Code 的特点是“Python launcher + 容器内直接调用 claude CLI”。
+Claude Code is characterized by "Python launcher + directly invoking the claude CLI inside the container".
 
-### 4.1 外层 launcher
+### 4.1 Outer Launcher
 
-[`experiment/claude_code/launch_claude_code.py`](experiment/claude_code/launch_claude_code.py) 的关键职责：
+Key responsibilities of [`experiment/claude_code/launch_claude_code.py`](experiment/claude_code/launch_claude_code.py):
 
-- 从 `.env` 中读取 `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_BASE_URL`，并支持回退到 `OPENCODE_API_KEY` / `OPENCODE_BASE_URL`
-- 统一整理模型相关环境变量，如 `CLAUDE_CODE_MODEL`、`ANTHROPIC_MODEL`
-- 构建 `claude-code-benchmark:latest` 之类的基础镜像
-- 以 `user="node"` 启动容器，并设置 `BENCHMARK_WORKSPACE_DIR`
-- 通过 `docker exec` 执行容器内 `npm run benchmark-internal`
+- Reads `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_BASE_URL` from `.env`, with support for falling back to `OPENCODE_API_KEY` / `OPENCODE_BASE_URL`
+- Uniformly organizes model-related environment variables, such as `CLAUDE_CODE_MODEL` and `ANTHROPIC_MODEL`
+- Builds a base image such as `claude-code-benchmark:latest`
+- Starts the container with `user="node"` and sets `BENCHMARK_WORKSPACE_DIR`
+- Runs the in-container `npm run benchmark-internal` via `docker exec`
 
-这里还专门实现了 `get_exec_timeout_sec()` 和临时文件收集 stdout/stderr 的逻辑，说明 Claude CLI 输出较长、运行时更需要稳妥的超时与日志处理。
+It also specifically implements `get_exec_timeout_sec()` and logic for collecting stdout/stderr through temporary files, which indicates that the Claude CLI produces longer output and requires more robust timeout and log handling at runtime.
 
-### 4.2 容器内 runner
+### 4.2 In-Container Runner
 
-[`experiment/claude_code/src/in_container.ts`](experiment/claude_code/src/in_container.ts) 的关键点：
+Key points of [`experiment/claude_code/src/in_container.ts`](experiment/claude_code/src/in_container.ts):
 
-- 在容器内 clone 仓库到工作目录
-- 调用 `writeClaudeSettings()` 生成 `~/.claude/settings.json`
-- 通过 `buildClaudeEnv()` 把 Anthropic 兼容网关、模型映射、关闭自动更新等配置写入 settings
-- 最终用 `claude -p` 无头模式执行 prompt
+- Clones the repository into the working directory inside the container
+- Calls `writeClaudeSettings()` to generate `~/.claude/settings.json`
+- Uses `buildClaudeEnv()` to write configuration such as the Anthropic-compatible gateway, model mapping, and disabling auto-update into the settings
+- Finally runs the prompt using `claude -p` headless mode
 
-Claude Code 不是通过 SDK API 驱动，而是通过 CLI 二进制直接运行，参数包括：
+Claude Code is not driven by an SDK API, but runs directly via the CLI binary, with arguments including:
 
 - `--output-format`
 - `--dangerously-skip-permissions`
 - `--max-turns`
-- 可选 `--model`
+- An optional `--model`
 
-所以 Claude Code 这一套更像“CLI 包装器模式”：Python 负责容器编排，TypeScript 负责仓库准备和本地配置，真正的 agent 执行落在 `claude` 命令本身。
+So Claude Code's setup is more of a "CLI wrapper pattern": Python handles container orchestration, TypeScript handles repository preparation and local configuration, and the actual agent execution falls to the `claude` command itself.
 
-## 5. OpenCode 架构
+## 5. OpenCode Architecture
 
-OpenCode 的特点是“Python launcher + 容器内通过 TypeScript SDK 启动本地服务并轮询 session”。
+OpenCode is characterized by "Python launcher + starting a local service inside the container via the TypeScript SDK and polling the session".
 
-### 5.1 外层 launcher
+### 5.1 Outer Launcher
 
-[`experiment/opencode/launch_opencode.py`](experiment/opencode/launch_opencode.py) 的关键职责：
+Key responsibilities of [`experiment/opencode/launch_opencode.py`](experiment/opencode/launch_opencode.py):
 
-- 强制要求 `OPENCODE_API_KEY`、`OPENCODE_BASE_URL`、`OPENCODE_MODEL`
-- 通过 `choose_server_port()` 动态分配一个本地端口，避免多个实验同时运行时端口冲突
-- 构建并复用 OpenCode 基础镜像
-- 将 API Key、Base URL、Model 和服务端口注入容器环境变量
+- Strictly requires `OPENCODE_API_KEY`, `OPENCODE_BASE_URL`, and `OPENCODE_MODEL`
+- Dynamically allocates a local port via `choose_server_port()` to avoid port conflicts when multiple experiments run simultaneously
+- Builds and reuses the OpenCode base image
+- Injects the API key, base URL, model, and service port into the container's environment variables
 
-与另外两个工具相比，OpenCode launcher 额外负责“端口选择”，因为容器内 SDK 会起本地服务。
+Compared with the other two tools, the OpenCode launcher additionally handles "port selection", because the in-container SDK starts a local service.
 
-### 5.2 容器内 runner
+### 5.2 In-Container Runner
 
-[`experiment/opencode/src/in_container.ts`](experiment/opencode/src/in_container.ts) 不是直接调用 `opencode` CLI，而是使用 `@opencode-ai/sdk`：
+[`experiment/opencode/src/in_container.ts`](experiment/opencode/src/in_container.ts) does not directly invoke the `opencode` CLI, but instead uses `@opencode-ai/sdk`:
 
-- `createOpencode(...)` 启动一个本地 OpenCode server
-- `session.create(...)` 创建会话
-- `prompt_async` 异步发送 prompt
-- 周期性轮询 `/session/status` 和 `/session/<id>/message`
-- 等待 session 进入终态后提取新的 assistant 消息并输出
+- `createOpencode(...)` starts a local OpenCode server
+- `session.create(...)` creates a session
+- `prompt_async` sends the prompt asynchronously
+- Periodically polls `/session/status` and `/session/<id>/message`
+- After the session enters a terminal state, extracts the new assistant messages and outputs them
 
-它的实现实际上是一个“小型会话驱动器”，核心逻辑包括：
+Its implementation is effectively a "small session driver", with core logic including:
 
-- `sendPromptAsync`：发起任务
-- `fetchSessionStatuses` / `fetchSessionMessages`：轮询状态和消息
-- `waitForAssistantMessage`：等待完成并拿到最终 assistant 输出
+- `sendPromptAsync`: initiates the task
+- `fetchSessionStatuses` / `fetchSessionMessages`: polls status and messages
+- `waitForAssistantMessage`: waits for completion and obtains the final assistant output
 
-因此 OpenCode 的架构不是简单“执行一个命令”，而是“在容器内启动 SDK server，再通过 HTTP/session 协议驱动 agent”。这是三者里中间控制逻辑最重的一套。
+Therefore, OpenCode's architecture is not simply "running a command", but "starting an SDK server inside the container and then driving the agent via an HTTP/session protocol". This is the one with the heaviest intermediate control logic among the three.
 
-## 6. Qwen Code 架构
+## 6. Qwen Code Architecture
 
-Qwen Code 的特点是“Python launcher + 容器内通过 SDK 直接流式 query”。
+Qwen Code is characterized by "Python launcher + directly streaming the query via the SDK inside the container".
 
-### 6.1 外层 launcher
+### 6.1 Outer Launcher
 
-[`experiment/qwen_code/launch_qwen_code.py`](experiment/qwen_code/launch_qwen_code.py) 的职责与 OpenCode 类似，但更轻：
+The responsibilities of [`experiment/qwen_code/launch_qwen_code.py`](experiment/qwen_code/launch_qwen_code.py) are similar to OpenCode's, but lighter:
 
-- 要求 `QWEN_CODE_API_KEY` 和 `QWEN_CODE_BASE_URL`
-- 允许通过 `QWEN_CODE_MODEL` 指定模型，默认 `qwen3-coder-plus`
-- 可选透传 `QWEN_CODE_CLI_PATH`
-- 复用或构建 Qwen Code 基础镜像
-- 启动容器后执行 `npm run benchmark-internal`
+- Requires `QWEN_CODE_API_KEY` and `QWEN_CODE_BASE_URL`
+- Allows specifying the model via `QWEN_CODE_MODEL`, defaulting to `qwen3-coder-plus`
+- Optionally passes through `QWEN_CODE_CLI_PATH`
+- Reuses or builds the Qwen Code base image
+- Runs `npm run benchmark-internal` after starting the container
 
-它没有 OpenCode 那样的本地 server 端口管理，也没有 Claude 那样的本地配置文件生成。
+It has neither OpenCode's local server port management nor Claude's local configuration file generation.
 
-### 6.2 容器内 runner
+### 6.2 In-Container Runner
 
-[`experiment/qwen_code/src/in_container.ts`](experiment/qwen_code/src/in_container.ts) 使用 `@qwen-code/sdk` 的 `query(...)`：
+[`experiment/qwen_code/src/in_container.ts`](experiment/qwen_code/src/in_container.ts) uses `query(...)` from `@qwen-code/sdk`:
 
-- 指定 `cwd`
-- 设置 `model`
-- 使用 `authType: "openai"` 对接 OpenAI 兼容接口
-- 使用 `permissionMode: "yolo"` 放开权限
-- 通过 `pathToQwenExecutable` 指向容器内 `qwen` CLI
-- 把 `OPENAI_API_KEY` 和 `OPENAI_BASE_URL` 注入到执行环境
+- Specifies `cwd`
+- Sets `model`
+- Uses `authType: "openai"` to connect to the OpenAI-compatible interface
+- Uses `permissionMode: "yolo"` to open up permissions
+- Points `pathToQwenExecutable` to the in-container `qwen` CLI
+- Injects `OPENAI_API_KEY` and `OPENAI_BASE_URL` into the execution environment
 
-随后它通过：
+It then uses:
 
-- `for await (const message of session)`  
-  按流式方式持续消费 agent 输出并逐条打印 JSON
+- `for await (const message of session)`
+  to continuously consume the agent's output in a streaming fashion and print JSON line by line
 
-所以 Qwen Code 是三者里最轻量的一套：没有 OpenCode 的本地 session server，也没有 Claude Code 的本地 settings 写入，直接使用 SDK 暴露的 query 流完成任务。
+So Qwen Code is the lightest of the three: there is no OpenCode local session server, nor Claude Code's local settings writing; it simply uses the query stream exposed by the SDK to complete the task.
 
-## 7. 三者的主要差异
+## 7. Main Differences Among the Three
 
-从实现架构上看，三者最大的区别集中在“容器内如何驱动 agent”：
+From an implementation-architecture perspective, the biggest difference among the three centers on "how the agent is driven inside the container":
 
-- `claude_code`：直接调用 `claude` CLI，无头模式执行
-- `open_code`：通过 OpenCode SDK 启动本地服务，再走 session + polling
-- `qwen_code`：通过 Qwen SDK 的 `query()` 直接流式执行
+- `claude_code`: directly invokes the `claude` CLI in headless mode
+- `open_code`: starts a local service via the OpenCode SDK, then uses session + polling
+- `qwen_code`: directly streams execution via the Qwen SDK's `query()`
 
-从工程复杂度看：
+From an engineering-complexity perspective:
 
-- `claude_code` 的复杂点在配置兼容层，尤其是 Anthropic 兼容网关和 `~/.claude/settings.json`
-- `open_code` 的复杂点在 session 生命周期管理和状态轮询
-- `qwen_code` 的复杂点最少，更多依赖 SDK 本身的流式封装
+- `claude_code`'s complexity lies in the configuration compatibility layer, especially the Anthropic-compatible gateway and `~/.claude/settings.json`
+- `open_code`'s complexity lies in session lifecycle management and status polling
+- `qwen_code` has the least complexity, relying more on the SDK's own streaming abstraction
 
-从外部实验框架角度看，它们又被有意做成一致：
+From the external experiment framework's perspective, they are deliberately made consistent:
 
-- 输入协议一致：都接收 `repository / repo-url / revision / task-prompt`
-- 输出协议一致：成功时都输出 `container_id=<id>`
-- 隔离方式一致：每个仓库运行一个独立 Docker 容器
-- 验证方式一致：都交给现有 `EnvironmentManager + VerifierAgent`
+- Consistent input protocol: all accept `repository / repo-url / revision / task-prompt`
+- Consistent output protocol: all print `container_id=<id>` on success
+- Consistent isolation approach: each repository runs in an isolated Docker container
+- Consistent verification approach: all hand off to the existing `EnvironmentManager + VerifierAgent`
 
-这使得实验框架只需要替换工具配置，不需要改动主评测逻辑。
+This means the experiment framework only needs to swap the tool configuration, without changing the main evaluation logic.
 
-## 8. 设计价值
+## 8. Design Value
 
-这套实现架构的价值主要有三点：
+The value of this implementation architecture lies mainly in three points:
 
-- 统一评测口径  
-  三个工具最终都被转换成“是否能产出一个可验证容器”，避免直接比较不同 CLI 的文本输出。
+- Unified evaluation criteria
+  All three tools are ultimately reduced to "whether they can produce a verifiable container", avoiding direct comparison of the text output of different CLIs.
 
-- 解耦工具实现与验证实现  
-  各工具只负责完成仓库配置，验证完全复用主项目已有能力。
+- Decoupling tool implementation from verification implementation
+  Each tool is only responsible for completing the repository setup, while verification fully reuses the main project's existing capabilities.
 
-- 易于扩展  
-  如果后续接入新的 CLI agent，只要补齐：
-  - 一个 launcher
-  - 一个容器内 runner
-  - 一个 `container_id` 输出协议
-  
-  就可以直接挂进现有 benchmark 框架。
+- Easy to extend
+  To integrate a new CLI agent later, you only need to provide:
+  - A launcher
+  - An in-container runner
+  - A `container_id` output protocol
 
-## 9. 一句话总结
+  and it can be plugged directly into the existing benchmark framework.
 
-`experiment/` 下三个 CLI 工具本质上都是“面向统一 verifier 的 Docker 化 agent 适配层”：
+## 9. One-Sentence Summary
 
-- `run_cli_benchmark.py` 负责统一调度
-- Python launcher 负责镜像和容器生命周期
-- TypeScript runner 负责容器内仓库准备和 agent 调用
-- 主项目的 `EnvironmentManager` 与 `VerifierAgent` 负责统一验收
+The three CLI tools under `experiment/` are essentially "Dockerized agent adaptation layers oriented toward a unified verifier":
 
-差异只存在于最内层的 agent 驱动方式，而外层实验接口被刻意设计成一致。
+- `run_cli_benchmark.py` handles unified scheduling
+- The Python launcher handles image and container lifecycle
+- The TypeScript runner handles in-container repository preparation and agent invocation
+- The main project's `EnvironmentManager` and `VerifierAgent` handle unified acceptance
+
+The differences exist only in the innermost agent driving method, while the outer experiment interface is deliberately designed to be consistent.

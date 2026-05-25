@@ -1,17 +1,17 @@
 """
-评估 ExecutionAgent baseline 结果：用我们的 Prosecutor + Judge 标准重新裁决。
+Re-adjudicate ExecutionAgent baseline results with our Prosecutor + Judge criteria.
 
-用法:
+Usage:
     .venv/bin/python scripts/eval_execagent.py [--repos repo1,repo2,...] [--workers N]
 
-流程:
-    1. 从 ExecutionAgent_success_output/ 读取 Dockerfile（+ install.sh）
-    2. docker build 构建镜像
-    3. docker run 启动容器
-    4. 执行 install.sh（如果存在）
-    5. 用 ProsecutorAgent 调查环境
-    6. 用 JudgeAgent 裁决（如果起诉）
-    7. 汇总报告
+Workflow:
+    1. Read the Dockerfile (+ install.sh) from ExecutionAgent_success_output/
+    2. Build the image with docker build
+    3. Start the container with docker run
+    4. Run install.sh (if present)
+    5. Investigate the environment with ProsecutorAgent
+    6. Adjudicate with JudgeAgent (if prosecuted)
+    7. Aggregate the report
 """
 
 import argparse
@@ -36,15 +36,15 @@ logger = get_logger("eval_execagent")
 EXEC_AGENT_OUTPUT = Path(__file__).resolve().parent.parent / "xpu-par" / "ExecutionAgent_success_output"
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "eval" / "results"
 
-# 线程安全的结果写入锁
+# Thread-safe lock for writing results
 _results_lock = threading.Lock()
 
-# Python 项目的基础镜像特征（FROM python:* 或 FROM ubuntu:*）
+# Base-image signatures for Python projects (FROM python:* or FROM ubuntu:*)
 PYTHON_BASE_IMAGES = {"python", "ubuntu"}
 
 
 def find_python_projects() -> dict[str, Path]:
-    """扫描 ExecutionAgent_success_output/，返回 Python 项目 {name: dir_path}"""
+    """Scan ExecutionAgent_success_output/ and return Python projects as {name: dir_path}."""
     projects = {}
     for d in sorted(EXEC_AGENT_OUTPUT.iterdir()):
         if not d.is_dir():
@@ -52,7 +52,7 @@ def find_python_projects() -> dict[str, Path]:
         dockerfile = d / "Dockerfile"
         if not dockerfile.exists():
             continue
-        # 检查基础镜像是否是 Python 相关
+        # Check whether the base image is Python-related
         first_line = dockerfile.read_text().splitlines()[0] if dockerfile.read_text() else ""
         base_image = first_line.replace("FROM ", "").split(":")[0].strip().lower()
         if base_image in PYTHON_BASE_IMAGES:
@@ -61,58 +61,58 @@ def find_python_projects() -> dict[str, Path]:
 
 
 def build_image(project_name: str, project_dir: Path) -> str | None:
-    """构建 Docker 镜像，返回镜像名或 None"""
+    """Build the Docker image and return the image name, or None."""
     image_name = f"execagent_eval/{project_name}".lower()
 
-    # 检查镜像是否已存在
+    # Check whether the image already exists
     result = subprocess.run(
         ["docker", "images", "-q", image_name],
         capture_output=True, text=True,
     )
     if result.stdout.strip():
-        logger.info(f"[{project_name}] 镜像已存在: {image_name}")
+        logger.info(f"[{project_name}] image already exists: {image_name}")
         return image_name
 
-    logger.info(f"[{project_name}] 开始构建镜像: {image_name}")
+    logger.info(f"[{project_name}] starting image build: {image_name}")
     try:
         result = subprocess.run(
             ["docker", "build", "-t", image_name, str(project_dir)],
             capture_output=True, text=True, timeout=1800,
         )
     except subprocess.TimeoutExpired:
-        logger.warning(f"[{project_name}] 构建超时（30分钟）")
+        logger.warning(f"[{project_name}] build timed out (30 minutes)")
         return None
 
     if result.returncode != 0:
-        logger.warning(f"[{project_name}] 构建失败:\n{result.stderr[-500:]}")
+        logger.warning(f"[{project_name}] build failed:\n{result.stderr[-500:]}")
         return None
 
-    logger.info(f"[{project_name}] 镜像构建成功")
+    logger.info(f"[{project_name}] image built successfully")
     return image_name
 
 
 def start_container(image_name: str) -> str | None:
-    """启动容器，返回 container_id"""
+    """Start a container and return its container_id."""
     result = subprocess.run(
         ["docker", "run", "-d", image_name, "sleep", "infinity"],
         capture_output=True, text=True,
     )
     if result.returncode != 0:
-        logger.warning(f"启动容器失败: {result.stderr}")
+        logger.warning(f"Failed to start container: {result.stderr}")
         return None
     cid = result.stdout.strip()
-    logger.info(f"容器已启动: {cid[:12]}")
+    logger.info(f"Container started: {cid[:12]}")
     return cid
 
 
 def stop_container(container_id: str) -> None:
-    """停止并删除容器"""
+    """Stop and remove the container."""
     subprocess.run(["docker", "rm", "-f", container_id], capture_output=True)
-    logger.info(f"容器已销毁: {container_id[:12]}")
+    logger.info(f"Container destroyed: {container_id[:12]}")
 
 
 def exec_in_container(container_id: str, cmd: str, timeout: int = 600) -> tuple[int, str]:
-    """在容器中执行命令"""
+    """Run a command inside the container."""
     result = subprocess.run(
         ["docker", "exec", container_id, "bash", "-c", cmd],
         capture_output=True, text=True, timeout=timeout,
@@ -121,8 +121,8 @@ def exec_in_container(container_id: str, cmd: str, timeout: int = 600) -> tuple[
 
 
 def find_repo_dir(container_id: str, project_name: str) -> str | None:
-    """在容器中找到仓库目录"""
-    # ExecAgent 的 Dockerfile 一般 clone 到 /app/<project_name>
+    """Find the repository directory inside the container."""
+    # ExecAgent's Dockerfile usually clones to /app/<project_name>
     for candidate in [f"/app/{project_name}", f"/app"]:
         exit_code, output = exec_in_container(
             container_id, f"test -d {candidate}/.git && echo FOUND", timeout=10,
@@ -130,7 +130,7 @@ def find_repo_dir(container_id: str, project_name: str) -> str | None:
         if "FOUND" in output:
             return candidate
 
-    # 兜底：在 /app 下搜索
+    # Fallback: search under /app
     exit_code, output = exec_in_container(
         container_id, "find /app -maxdepth 2 -name '.git' -type d 2>/dev/null | head -1", timeout=10,
     )
@@ -141,7 +141,7 @@ def find_repo_dir(container_id: str, project_name: str) -> str | None:
 
 
 def build_setup_history(project_name: str, project_dir: Path) -> list[dict]:
-    """把 Dockerfile + install.sh 转换成伪 setup_history"""
+    """Convert the Dockerfile + install.sh into a pseudo setup_history."""
     dockerfile_content = (project_dir / "Dockerfile").read_text()
     install_sh = ""
     if (project_dir / "install.sh").exists():
@@ -157,7 +157,7 @@ def build_setup_history(project_name: str, project_dir: Path) -> list[dict]:
         "step": 0,
         "action": {
             "action_type": "CONTEXT",
-            "thought": "以下是 ExecutionAgent 生成的 Dockerfile 和安装脚本",
+            "thought": "The following is the Dockerfile and install script generated by ExecutionAgent.",
             "content": {},
         },
         "result": {
@@ -169,37 +169,37 @@ def build_setup_history(project_name: str, project_dir: Path) -> list[dict]:
 
 
 def build_verify_messages(project_name: str, project_dir: Path) -> list[dict]:
-    """构造 verify_messages"""
-    # 读取 test_results.txt（如果有）
+    """Build verify_messages."""
+    # Read test_results.txt (if present)
     test_content = ""
-    for name in ["test_results.txt", "test_reuslts.txt"]:  # 注意他们有 typo
+    for name in ["test_results.txt", "test_reuslts.txt"]:  # note: they have a typo
         p = project_dir / name
         if p.exists():
             test_content = p.read_text()
             if len(test_content) > 3000:
-                test_content = test_content[:1500] + "\n...[截断]...\n" + test_content[-1500:]
+                test_content = test_content[:1500] + "\n...[truncated]...\n" + test_content[-1500:]
             break
 
     msgs = [{
         "role": "user",
         "content": (
-            "这是 ExecutionAgent 配置的环境。"
-            "ExecutionAgent 是一个基于 AutoGPT 的自动化环境配置工具。\n\n"
-            "请用我们的标准调查：核心依赖是否可导入？测试是否能实际运行？"
+            "This is an environment configured by ExecutionAgent. "
+            "ExecutionAgent is an AutoGPT-based automated environment configuration tool.\n\n"
+            "Please investigate using our criteria: are the core dependencies importable? Can the tests actually run?"
         ),
     }]
 
     if test_content:
         msgs.append({
             "role": "user",
-            "content": f"ExecutionAgent 的测试输出:\n{test_content}",
+            "content": f"ExecutionAgent test output:\n{test_content}",
         })
 
     return msgs
 
 
 def evaluate_repo(project_name: str, project_dir: Path) -> dict:
-    """评估单个项目"""
+    """Evaluate a single project."""
     result = {
         "repo": project_name,
         "build_ok": False,
@@ -210,75 +210,75 @@ def evaluate_repo(project_name: str, project_dir: Path) -> dict:
         "reason": "",
     }
 
-    # 1. 构建镜像
+    # 1. Build the image
     image_name = build_image(project_name, project_dir)
     if not image_name:
-        result["reason"] = "Docker 构建失败"
+        result["reason"] = "Docker build failed"
         return result
     result["build_ok"] = True
 
-    # 2. 启动容器
+    # 2. Start the container
     container_id = start_container(image_name)
     if not container_id:
-        result["reason"] = "容器启动失败"
+        result["reason"] = "Failed to start container"
         return result
 
     try:
-        # 3. 找到仓库目录
+        # 3. Find the repository directory
         repo_dir = find_repo_dir(container_id, project_name)
-        logger.info(f"[{project_name}] 仓库目录: {repo_dir}")
+        logger.info(f"[{project_name}] repository directory: {repo_dir}")
 
-        # 4. 执行 install.sh（如果存在）
+        # 4. Run install.sh (if present)
         install_sh = project_dir / "install.sh"
         if not install_sh.exists():
             install_sh = project_dir / "install_and_test.sh"
 
         if install_sh.exists():
-            logger.info(f"[{project_name}] 执行 {install_sh.name}")
-            # 复制到容器内执行
+            logger.info(f"[{project_name}] running {install_sh.name}")
+            # Copy into the container and run it
             subprocess.run(
                 ["docker", "cp", str(install_sh), f"{container_id}:{repo_dir}/{install_sh.name}"],
                 capture_output=True, check=True,
             )
             exec_in_container(container_id, f"chmod +x {repo_dir}/{install_sh.name}", timeout=10)
-            # 用 source 执行以保留 venv/activate 等环境变量。
-            # 关键：install.sh 可能含 set -e，会覆盖外层 set +e 并在失败时杀掉整个 shell，
-            # 导致后面的 env dump 永远不执行。解决：用 trap EXIT 确保 env dump 一定执行。
+            # Run with source to preserve venv/activate and other environment variables.
+            # Key point: install.sh may use set -e, which overrides the outer set +e and kills the whole shell on failure,
+            # so the later env dump would never run. Fix: use trap EXIT to guarantee the env dump runs.
             exit_code, output = exec_in_container(
                 container_id,
                 f"cd {repo_dir} && trap 'env > /tmp/_install_env.txt' EXIT && source {install_sh.name} 2>&1; echo EXIT_CODE=$?",
                 timeout=1200,
             )
             result["install_ok"] = True
-            logger.info(f"[{project_name}] install.sh 执行完成, exit_code={exit_code}")
+            logger.info(f"[{project_name}] install.sh finished, exit_code={exit_code}")
         else:
-            result["install_ok"] = True  # 没有安装脚本，Dockerfile 已完成安装
-            logger.info(f"[{project_name}] 无 install.sh，Dockerfile 已完成安装")
+            result["install_ok"] = True  # No install script; the Dockerfile already completed installation
+            logger.info(f"[{project_name}] no install.sh; the Dockerfile already completed installation")
 
-        # 5. 接管容器
+        # 5. Take over the container
         env = EnvironmentManager()
         env.attach(container_id, repo_dir=repo_dir)
 
-        # 注入 install.sh 执行后的环境变量（如果有）
+        # Inject environment variables from after install.sh ran (if any)
         _inject_install_env(container_id, env)
 
         setup_history = build_setup_history(project_name, project_dir)
         verify_messages = build_verify_messages(project_name, project_dir)
 
-        # 6. 检察官调查
-        logger.info(f"[{project_name}] 检察官开始调查")
+        # 6. Prosecutor investigation
+        logger.info(f"[{project_name}] prosecutor starting investigation")
         prosecutor = ProsecutorAgent(env, setup_history, verify_messages)
         prosecution = prosecutor.investigate()
         result["prosecute"] = prosecution.prosecute
         result["charges"] = prosecution.charges
-        logger.info(f"[{project_name}] 检察官结论: prosecute={prosecution.prosecute}, 指控数={len(prosecution.charges)}")
+        logger.info(f"[{project_name}] prosecutor conclusion: prosecute={prosecution.prosecute}, charges={len(prosecution.charges)}")
 
         if not prosecution.prosecute:
             result["verdict"] = "not_guilty"
-            result["reason"] = "检察官未起诉"
+            result["reason"] = "Prosecutor did not prosecute"
         else:
-            # 7. 法官裁决
-            logger.info(f"[{project_name}] 法官开始裁决")
+            # 7. Judge adjudication
+            logger.info(f"[{project_name}] judge starting adjudication")
             judgment = JudgeAgent(
                 setup_history,
                 verify_messages,
@@ -287,11 +287,11 @@ def evaluate_repo(project_name: str, project_dir: Path) -> dict:
             ).rule()
             result["verdict"] = judgment["verdict"]
             result["reason"] = judgment["reasoning"]
-            logger.info(f"[{project_name}] 法官裁决: {judgment['verdict']}")
+            logger.info(f"[{project_name}] judge verdict: {judgment['verdict']}")
 
     except Exception as e:
-        logger.warning(f"[{project_name}] 评估异常: {e}")
-        result["reason"] = f"评估异常: {e}"
+        logger.warning(f"[{project_name}] evaluation error: {e}")
+        result["reason"] = f"evaluation error: {e}"
     finally:
         stop_container(container_id)
 
@@ -299,7 +299,7 @@ def evaluate_repo(project_name: str, project_dir: Path) -> dict:
 
 
 def _inject_install_env(container_id: str, env: EnvironmentManager) -> None:
-    """从 install.sh 执行后的环境变量快照注入关键变量"""
+    """Inject key variables from the environment snapshot taken after install.sh ran."""
     IMPORTANT_VARS = {
         "PATH", "PYTHONPATH", "PYTHONHOME",
         "VIRTUAL_ENV", "CONDA_DEFAULT_ENV", "CONDA_PREFIX",
@@ -326,11 +326,11 @@ def _inject_install_env(container_id: str, env: EnvironmentManager) -> None:
             injected += 1
 
     if injected:
-        logger.info(f"从 install 环境快照注入 {injected} 个变量")
+        logger.info(f"Injected {injected} variables from the install environment snapshot")
 
 
 def _save_results(results: list[dict], output_path: Path) -> None:
-    """线程安全写入结果"""
+    """Write the results in a thread-safe way."""
     with _results_lock:
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(results, f, ensure_ascii=False, indent=2)
@@ -343,15 +343,15 @@ def _run_one(
     output_path: Path,
     total: int,
 ) -> dict:
-    """单个项目评估入口"""
+    """Evaluation entry point for a single project."""
     try:
         result = evaluate_repo(project_name, project_dir)
     except Exception as e:
-        logger.error(f"[{project_name}] 未捕获异常: {e}")
+        logger.error(f"[{project_name}] uncaught exception: {e}")
         result = {
             "repo": project_name, "build_ok": False, "install_ok": False,
             "prosecute": None, "charges": [], "verdict": None,
-            "reason": f"未捕获异常: {e}",
+            "reason": f"uncaught exception: {e}",
         }
 
     with _results_lock:
@@ -368,18 +368,18 @@ def _run_one(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="评估 ExecutionAgent baseline 结果")
+    parser = argparse.ArgumentParser(description="Re-adjudicate ExecutionAgent baseline results")
     parser.add_argument("--repos", type=str, default=None,
-                        help="逗号分隔的项目名，默认全部 Python 项目")
+                        help="comma-separated project names; default is all Python projects")
     parser.add_argument("--workers", type=int, default=1,
-                        help="并行 worker 数")
+                        help="number of parallel workers")
     parser.add_argument("--output", type=str, default=None,
-                        help="输出文件路径")
+                        help="output file path")
     args = parser.parse_args()
 
-    # 扫描 Python 项目
+    # Scan Python projects
     all_projects = find_python_projects()
-    logger.info(f"发现 {len(all_projects)} 个 Python 项目: {list(all_projects.keys())}")
+    logger.info(f"Found {len(all_projects)} Python projects: {list(all_projects.keys())}")
 
     if args.repos:
         selected = [r.strip() for r in args.repos.split(",")]
@@ -390,20 +390,20 @@ def main():
     output_path = Path(args.output) if args.output else OUTPUT_DIR / "execagent_eval.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 加载已有结果（断点续跑）
+    # Load existing results (resume support)
     existing_results = {}
     if output_path.exists():
         try:
             with open(output_path, "r", encoding="utf-8") as f:
                 for r in json.load(f):
                     existing_results[r["repo"]] = r
-            logger.info(f"已加载 {len(existing_results)} 条历史结果")
+            logger.info(f"Loaded {len(existing_results)} historical results")
         except Exception as e:
-            logger.warning(f"加载历史结果失败: {e}")
+            logger.warning(f"Failed to load historical results: {e}")
 
     results = list(existing_results.values())
     pending = {k: v for k, v in projects.items() if k not in existing_results}
-    logger.info(f"待评估 {len(pending)} 个项目（已有 {len(existing_results)} 条历史结果），workers={args.workers}")
+    logger.info(f"{len(pending)} projects pending ({len(existing_results)} historical results already present), workers={args.workers}")
 
     if args.workers <= 1:
         for name, path in pending.items():
@@ -419,13 +419,13 @@ def main():
                 try:
                     future.result()
                 except Exception as e:
-                    logger.error(f"[{name}] worker 异常: {e}")
+                    logger.error(f"[{name}] worker error: {e}")
 
     _save_results(results, output_path)
 
-    # 汇总
+    # Summary
     print(f"\n{'='*60}")
-    print("ExecutionAgent 评估汇总")
+    print("ExecutionAgent evaluation summary")
     print(f"{'='*60}")
     total = len(results)
     build_ok = sum(1 for r in results if r.get("build_ok"))
@@ -434,13 +434,13 @@ def main():
     guilty = sum(1 for r in results if r.get("verdict") == "guilty")
     no_verdict = total - not_guilty - guilty
 
-    print(f"总数: {total}")
-    print(f"构建成功: {build_ok}")
-    print(f"安装成功: {install_ok}")
+    print(f"Total: {total}")
+    print(f"Builds succeeded: {build_ok}")
+    print(f"Installs succeeded: {install_ok}")
     print(f"not_guilty: {not_guilty}")
     print(f"guilty: {guilty}")
-    print(f"无裁决: {no_verdict}")
-    print(f"结果已写入: {output_path}")
+    print(f"No verdict: {no_verdict}")
+    print(f"Results written to: {output_path}")
 
 
 if __name__ == "__main__":

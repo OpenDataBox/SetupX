@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-汇总 CLI benchmark 结果，支持 tool 级与 run 级 summary。
+Aggregate CLI benchmark results, supporting both tool-level and run-level summaries.
 """
 
 from __future__ import annotations
@@ -14,12 +14,12 @@ from typing import Any
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="汇总 CLI benchmark 结果")
-    parser.add_argument("--result-dir", required=True, help="单次实验结果目录")
+    parser = argparse.ArgumentParser(description="Aggregate CLI benchmark results")
+    parser.add_argument("--result-dir", required=True, help="Directory of a single experiment run's results")
     parser.add_argument(
         "--output",
         default="",
-        help="run 级汇总输出路径；默认写入 result-dir 下新的 run_summary_*.json",
+        help="Output path for the run-level summary; defaults to a new run_summary_*.json under result-dir",
     )
     return parser.parse_args()
 
@@ -72,7 +72,7 @@ def main() -> int:
     result_dir = Path(args.result_dir)
     raw_path = result_dir / "raw_results.jsonl"
     if not raw_path.exists():
-        print(f"错误: 找不到 {raw_path}", file=sys.stderr)
+        print(f"Error: {raw_path} not found", file=sys.stderr)
         return 1
 
     rows = load_rows(raw_path)
@@ -104,7 +104,7 @@ def main() -> int:
             f"timeout={item['timeout']} success_rate={item['success_rate']:.2%} "
             f"avg_duration={item['avg_duration_sec']}s"
         )
-    print(f"run_summary 已写入: {run_summary_path}")
+    print(f"run_summary written to: {run_summary_path}")
     return 0
 
 

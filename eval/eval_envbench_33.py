@@ -1,9 +1,9 @@
 """
-评估 EnvBench 补充的 33 个 repo：用 Prosecutor + Judge 裁决。
+Evaluate the 33 additional EnvBench repos with Prosecutor + Judge.
 
-数据来源：envbench_33/{owner__{repo}@{commit}}/Dockerfile + SETUP_AND_INSTALL.sh
+Data source: envbench_33/{owner__{repo}@{commit}}/Dockerfile + SETUP_AND_INSTALL.sh
 
-用法:
+Usage:
     .venv/bin/python scripts/eval_envbench_33.py [--workers N] [--repos a,b,c]
 """
 
@@ -35,8 +35,8 @@ _results_lock = threading.Lock()
 
 
 def discover_projects() -> list[dict]:
-    """扫描 envbench_33 目录，返回项目列表"""
-    # 加载 44 repo 列表用于匹配
+    """Scan the envbench_33 directory and return the list of projects."""
+    # Load the 44-repo list for matching
     overlap_repos = set()
     with open(OVERLAP_FILE) as f:
         for line in f:
@@ -47,7 +47,7 @@ def discover_projects() -> list[dict]:
     for entry in sorted(ENVBENCH_33_DIR.iterdir()):
         if not entry.is_dir():
             continue
-        # 格式: owner__repo@commit
+        # Format: owner__repo@commit
         dir_name = entry.name
         if "@" not in dir_name:
             continue
@@ -57,7 +57,7 @@ def discover_projects() -> list[dict]:
         dockerfile = entry / "Dockerfile"
         install_sh = entry / "SETUP_AND_INSTALL.sh"
         if not dockerfile.exists():
-            logger.warning(f"[{owner_repo}] 无 Dockerfile，跳过")
+            logger.warning(f"[{owner_repo}] no Dockerfile, skipping")
             continue
 
         repo_name = owner_repo.split("/")[1]
@@ -76,7 +76,7 @@ def discover_projects() -> list[dict]:
 
 
 def build_image(project: dict) -> str | None:
-    """构建 Docker 镜像"""
+    """Build the Docker image."""
     image_name = f"envbench33_eval/{project['name']}".lower()
 
     result = subprocess.run(
@@ -84,26 +84,26 @@ def build_image(project: dict) -> str | None:
         capture_output=True, text=True,
     )
     if result.stdout.strip():
-        logger.info(f"[{project['name']}] 镜像已存在: {image_name}")
+        logger.info(f"[{project['name']}] image already exists: {image_name}")
         return image_name
 
-    logger.info(f"[{project['name']}] 开始构建镜像: {image_name}")
+    logger.info(f"[{project['name']}] starting image build: {image_name}")
     try:
-        # EnvBench Dockerfile 的 COPY SETUP_AND_INSTALL.sh 需要在构建上下文中
-        # 直接用 project['dir'] 作为构建上下文
+        # The EnvBench Dockerfile's COPY SETUP_AND_INSTALL.sh requires it in the build context
+        # Use project['dir'] directly as the build context
         result = subprocess.run(
             ["docker", "build", "-t", image_name, str(project["dir"])],
             capture_output=True, text=True, timeout=1800,
         )
     except subprocess.TimeoutExpired:
-        logger.warning(f"[{project['name']}] 构建超时（30分钟）")
+        logger.warning(f"[{project['name']}] build timed out (30 minutes)")
         return None
 
     if result.returncode != 0:
-        logger.warning(f"[{project['name']}] 构建失败:\n{result.stderr[-500:]}")
+        logger.warning(f"[{project['name']}] build failed:\n{result.stderr[-500:]}")
         return None
 
-    logger.info(f"[{project['name']}] 镜像构建成功")
+    logger.info(f"[{project['name']}] image built successfully")
     return image_name
 
 
@@ -113,16 +113,16 @@ def start_container(image_name: str) -> str | None:
         capture_output=True, text=True,
     )
     if result.returncode != 0:
-        logger.warning(f"启动容器失败: {result.stderr}")
+        logger.warning(f"Failed to start container: {result.stderr}")
         return None
     cid = result.stdout.strip()
-    logger.info(f"容器已启动: {cid[:12]}")
+    logger.info(f"Container started: {cid[:12]}")
     return cid
 
 
 def stop_container(container_id: str) -> None:
     subprocess.run(["docker", "rm", "-f", container_id], capture_output=True)
-    logger.info(f"容器已销毁: {container_id[:12]}")
+    logger.info(f"Container destroyed: {container_id[:12]}")
 
 
 def exec_in_container(container_id: str, cmd: str, timeout: int = 600) -> tuple[int, str]:
@@ -134,11 +134,11 @@ def exec_in_container(container_id: str, cmd: str, timeout: int = 600) -> tuple[
 
 
 def _inject_env_from_container(container_id: str, env: EnvironmentManager, project: dict) -> None:
-    """探测容器中实际可用的 Python 环境（pyenv/conda/poetry venv），注入 PATH 等变量。
+    """Probe the actually-available Python environment in the container (pyenv/conda/poetry venv) and inject PATH and related variables.
 
-    EnvBench Dockerfile 在 RUN 层执行 SETUP_AND_INSTALL.sh，但 RUN 层的
-    conda activate / pyenv global / export PATH 不会持久化到容器运行时。
-    这里在容器中动态探测并恢复正确的环境。
+    The EnvBench Dockerfile runs SETUP_AND_INSTALL.sh in a RUN layer, but the RUN layer's
+    conda activate / pyenv global / export PATH do not persist into the container runtime.
+    Here we dynamically probe inside the container and restore the correct environment.
     """
     IMPORTANT_VARS = {
         "PATH", "PYTHONPATH", "PYTHONHOME",
@@ -150,15 +150,15 @@ def _inject_env_from_container(container_id: str, env: EnvironmentManager, proje
         "LD_LIBRARY_PATH", "PKG_CONFIG_PATH", "CMAKE_PREFIX_PATH",
     }
 
-    # 通用探测脚本：恢复安装时的 Python 环境
-    # 优先级：poetry venv > conda 非 base 环境 > pyenv（后激活的 PATH 在最前面）
+    # Generic probe script: restore the Python environment used at install time
+    # Priority: poetry venv > conda non-base env > pyenv (later-activated PATH comes first)
     probe_script = r"""
-# 1. pyenv: 先设置（优先级最低，放最前面）
+# 1. pyenv: set up first (lowest priority, placed at the front)
 if command -v pyenv >/dev/null 2>&1; then
     eval "$(pyenv init -)" 2>/dev/null
 fi
 
-# 2. conda: 激活第一个非 base 环境
+# 2. conda: activate the first non-base environment
 if [ -f /opt/conda/etc/profile.d/conda.sh ]; then
     source /opt/conda/etc/profile.d/conda.sh 2>/dev/null
     CONDA_ENV=$(conda env list 2>/dev/null | grep -v '^#' | grep -v '^base ' | grep -v '^\s*$' | head -1 | awk '{print $1}')
@@ -167,7 +167,7 @@ if [ -f /opt/conda/etc/profile.d/conda.sh ]; then
     fi
 fi
 
-# 3. poetry venv: 最高优先级
+# 3. poetry venv: highest priority
 if command -v poetry >/dev/null 2>&1; then
     VENV_PATH=$(cd /data/project 2>/dev/null && poetry env info --path 2>/dev/null)
     if [ -n "$VENV_PATH" ] && [ -d "$VENV_PATH" ]; then
@@ -175,7 +175,7 @@ if command -v poetry >/dev/null 2>&1; then
     fi
 fi
 
-# 4. 常见 venv 目录
+# 4. Common venv directories
 for vdir in /data/project/.venv /data/project/venv /data/project/.tox; do
     if [ -f "$vdir/bin/activate" ]; then
         source "$vdir/bin/activate" 2>/dev/null
@@ -188,7 +188,7 @@ env
     try:
         exit_code, output = exec_in_container(container_id, probe_script, timeout=30)
     except Exception as e:
-        logger.warning(f"环境探测异常: {e}")
+        logger.warning(f"Environment probe error: {e}")
         return
 
     injected = 0
@@ -200,20 +200,20 @@ env
         if key in IMPORTANT_VARS and value.strip():
             env.set_env(key, value)
             injected += 1
-            logger.debug(f"注入环境变量: {key}={value[:80]}")
+            logger.debug(f"Injected environment variable: {key}={value[:80]}")
 
-    logger.info(f"[{project['name']}] 环境探测注入 {injected} 个变量")
+    logger.info(f"[{project['name']}] environment probe injected {injected} variables")
 
 
 def find_repo_dir(container_id: str) -> str:
-    """EnvBench 统一 clone 到 /data/project"""
+    """EnvBench always clones to /data/project."""
     exit_code, output = exec_in_container(
         container_id, "test -d /data/project/.git && echo FOUND", timeout=10,
     )
     if "FOUND" in output:
         return "/data/project"
 
-    # 回退搜索
+    # Fallback search
     exit_code, output = exec_in_container(
         container_id,
         "find / -maxdepth 4 -name '.git' -type d "
@@ -233,13 +233,13 @@ def build_setup_history(project: dict) -> list[dict]:
     if project["install_sh"]:
         install_content = project["install_sh"].read_text(errors="replace")
         if len(install_content) > 3000:
-            install_content = install_content[:1500] + "\n...[截断]...\n" + install_content[-1500:]
+            install_content = install_content[:1500] + "\n...[truncated]...\n" + install_content[-1500:]
 
     test_content = ""
     if project["test_results"]:
         test_content = project["test_results"].read_text(errors="replace")
         if len(test_content) > 3000:
-            test_content = test_content[:1500] + "\n...[截断]...\n" + test_content[-1500:]
+            test_content = test_content[:1500] + "\n...[truncated]...\n" + test_content[-1500:]
 
     context = f"=== EnvBench Dockerfile for {project['full']} ===\n{dockerfile_content}"
     if install_content:
@@ -251,7 +251,7 @@ def build_setup_history(project: dict) -> list[dict]:
         "step": 0,
         "action": {
             "action_type": "CONTEXT",
-            "thought": "以下是 EnvBench Agent 生成的 Dockerfile 和安装脚本",
+            "thought": "The following is the Dockerfile and install script generated by the EnvBench Agent.",
             "content": {},
         },
         "result": {
@@ -266,9 +266,9 @@ def build_verify_messages(project: dict) -> list[dict]:
     return [{
         "role": "user",
         "content": (
-            "这是 EnvBench Agent 配置的环境。"
-            "EnvBench 是一个基于 LLM 的自动化仓库环境配置工具。\n\n"
-            "请用我们的标准调查：核心依赖是否可导入？测试是否能实际运行？"
+            "This is an environment configured by the EnvBench Agent. "
+            "EnvBench is an LLM-based automated repository environment configuration tool.\n\n"
+            "Please investigate using our criteria: are the core dependencies importable? Can the tests actually run?"
         ),
     }]
 
@@ -288,52 +288,52 @@ def evaluate_repo(project: dict) -> dict:
 
     name = project["name"]
 
-    # 1. 构建镜像
+    # 1. Build the image
     image_name = build_image(project)
     if not image_name:
-        result["reason"] = "Docker 构建失败"
+        result["reason"] = "Docker build failed"
         return result
     result["build_ok"] = True
 
-    # 2. 启动容器
+    # 2. Start the container
     container_id = start_container(image_name)
     if not container_id:
-        result["reason"] = "容器启动失败"
+        result["reason"] = "Failed to start container"
         return result
 
     try:
-        # EnvBench Dockerfile 已完成所有安装
+        # The EnvBench Dockerfile has already completed all installation
         result["install_ok"] = True
 
-        # 3. 找仓库目录
+        # 3. Locate the repository directory
         repo_dir = find_repo_dir(container_id)
-        logger.info(f"[{name}] 仓库目录: {repo_dir}")
+        logger.info(f"[{name}] repository directory: {repo_dir}")
 
-        # 4. 接管容器
+        # 4. Take over the container
         env = EnvironmentManager()
         env.attach(container_id, repo_dir=repo_dir)
 
-        # 恢复 SETUP_AND_INSTALL.sh 中的 pyenv/conda/poetry 环境变量
-        # EnvBench Dockerfile 的 RUN 层执行完后环境变量不会持久化
+        # Restore the pyenv/conda/poetry environment variables from SETUP_AND_INSTALL.sh
+        # The EnvBench Dockerfile's RUN-layer environment variables do not persist
         _inject_env_from_container(container_id, env, project)
 
         setup_history = build_setup_history(project)
         verify_messages = build_verify_messages(project)
 
-        # 5. 检察官调查
-        logger.info(f"[{name}] 检察官开始调查")
+        # 5. Prosecutor investigation
+        logger.info(f"[{name}] prosecutor starting investigation")
         prosecutor = ProsecutorAgent(env, setup_history, verify_messages)
         prosecution = prosecutor.investigate()
         result["prosecute"] = prosecution.prosecute
         result["charges"] = prosecution.charges
-        logger.info(f"[{name}] 检察官结论: prosecute={prosecution.prosecute}, 指控数={len(prosecution.charges)}")
+        logger.info(f"[{name}] prosecutor conclusion: prosecute={prosecution.prosecute}, charges={len(prosecution.charges)}")
 
         if not prosecution.prosecute:
             result["verdict"] = "not_guilty"
-            result["reason"] = "检察官未起诉"
+            result["reason"] = "Prosecutor did not prosecute"
         else:
-            # 6. 法官裁决
-            logger.info(f"[{name}] 法官开始裁决")
+            # 6. Judge adjudication
+            logger.info(f"[{name}] judge starting adjudication")
             judgment = JudgeAgent(
                 setup_history,
                 verify_messages,
@@ -342,11 +342,11 @@ def evaluate_repo(project: dict) -> dict:
             ).rule()
             result["verdict"] = judgment["verdict"]
             result["reason"] = judgment["reasoning"]
-            logger.info(f"[{name}] 法官裁决: {judgment['verdict']}")
+            logger.info(f"[{name}] judge verdict: {judgment['verdict']}")
 
     except Exception as e:
-        logger.warning(f"[{name}] 评估异常: {e}")
-        result["reason"] = f"评估异常: {e}"
+        logger.warning(f"[{name}] evaluation error: {e}")
+        result["reason"] = f"evaluation error: {e}"
     finally:
         stop_container(container_id)
 
@@ -364,13 +364,13 @@ def _run_one(project: dict, results: list[dict], output_path: Path, total: int) 
     try:
         result = evaluate_repo(project)
     except Exception as e:
-        logger.error(f"[{name}] 未捕获异常: {e}")
+        logger.error(f"[{name}] uncaught exception: {e}")
         result = {
             "repo": name, "full": project["full"],
             "repo_url": project["repo_url"],
             "build_ok": False, "install_ok": False,
             "prosecute": None, "charges": [], "verdict": None,
-            "reason": f"未捕获异常: {e}",
+            "reason": f"uncaught exception: {e}",
         }
 
     with _results_lock:
@@ -387,17 +387,17 @@ def _run_one(project: dict, results: list[dict], output_path: Path, total: int) 
 
 
 def main():
-    parser = argparse.ArgumentParser(description="评估 EnvBench 补充的 33 个 repo")
+    parser = argparse.ArgumentParser(description="Evaluate the 33 additional EnvBench repos")
     parser.add_argument("--repos", type=str, default=None,
-                        help="逗号分隔的项目名，默认全部")
+                        help="comma-separated project names; default is all")
     parser.add_argument("--workers", type=int, default=1,
-                        help="并行 worker 数")
+                        help="number of parallel workers")
     parser.add_argument("--output", type=str, default=None,
-                        help="输出文件路径")
+                        help="output file path")
     args = parser.parse_args()
 
     all_projects = discover_projects()
-    logger.info(f"发现 {len(all_projects)} 个 EnvBench 项目")
+    logger.info(f"Found {len(all_projects)} EnvBench projects")
 
     if args.repos:
         selected = {r.strip() for r in args.repos.split(",")}
@@ -406,19 +406,19 @@ def main():
     output_path = Path(args.output) if args.output else OUTPUT_DIR / "envbench_33_eval.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 断点续跑
+    # Resume support
     existing_results = {}
     if output_path.exists():
         try:
             for r in json.load(open(output_path, encoding="utf-8")):
                 existing_results[r["repo"]] = r
-            logger.info(f"已加载 {len(existing_results)} 条历史结果")
+            logger.info(f"Loaded {len(existing_results)} historical results")
         except Exception as e:
-            logger.warning(f"加载历史结果失败: {e}")
+            logger.warning(f"Failed to load historical results: {e}")
 
     results = list(existing_results.values())
     pending = [p for p in all_projects if p["name"] not in existing_results]
-    logger.info(f"待评估 {len(pending)} 个项目（已有 {len(existing_results)} 条历史结果），workers={args.workers}")
+    logger.info(f"{len(pending)} projects pending ({len(existing_results)} historical results already present), workers={args.workers}")
 
     if args.workers <= 1:
         for project in pending:
@@ -434,13 +434,13 @@ def main():
                 try:
                     future.result()
                 except Exception as e:
-                    logger.error(f"[{name}] worker 异常: {e}")
+                    logger.error(f"[{name}] worker error: {e}")
 
     _save_results(results, output_path)
 
-    # 汇总
+    # Summary
     print(f"\n{'='*60}")
-    print("EnvBench 33 Repo 评估汇总")
+    print("EnvBench 33-Repo evaluation summary")
     print(f"{'='*60}")
     total = len(results)
     build_ok = sum(1 for r in results if r.get("build_ok"))
@@ -448,13 +448,13 @@ def main():
     guilty = sum(1 for r in results if r.get("verdict") == "guilty")
     no_verdict = total - not_guilty - guilty
 
-    print(f"总数: {total}")
-    print(f"构建成功: {build_ok}")
+    print(f"Total: {total}")
+    print(f"Builds succeeded: {build_ok}")
     print(f"not_guilty: {not_guilty}")
     print(f"guilty: {guilty}")
-    print(f"无裁决: {no_verdict}")
-    print(f"通过率: {not_guilty}/{total} = {not_guilty/total*100:.0f}%" if total else "N/A")
-    print(f"\n结果已写入: {output_path}")
+    print(f"No verdict: {no_verdict}")
+    print(f"Pass rate: {not_guilty}/{total} = {not_guilty/total*100:.0f}%" if total else "N/A")
+    print(f"\nResults written to: {output_path}")
 
 
 if __name__ == "__main__":
