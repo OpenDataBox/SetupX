@@ -1,4 +1,3 @@
-[framework.pdf](https://github.com/user-attachments/files/28204020/framework.pdf)
 <img width="1408" height="768" alt="SetupX architecture overview" src="assets/setupx_hero.jpg" />
 
 # SetupX
