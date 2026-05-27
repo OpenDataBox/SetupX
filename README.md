@@ -1,6 +1,6 @@
 # SetupX
 <p align="center">
-  <img width="200" src="https://github.com/user-attachments/assets/c6684028-50bd-4205-828f-5e22d3b30f73" />
+  <img width="300" src="https://github.com/user-attachments/assets/c6684028-50bd-4205-828f-5e22d3b30f73" />
 </p>
 
 
