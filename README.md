@@ -1,5 +1,8 @@
 # SetupX
-<img width="530" height="496" alt="image" src="https://github.com/user-attachments/assets/ff0524a2-12c0-4d18-971a-79cac72daa2b" />
+<p align="center">
+  <img width="400" src="https://github.com/user-attachments/assets/c6684028-50bd-4205-828f-5e22d3b30f73" />
+</p>
+
 
 **Experience-Driven Automated Environment Configuration with LLM Agents**
 
