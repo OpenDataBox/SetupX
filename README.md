@@ -1,6 +1,5 @@
-<img width="1408" height="768" alt="SetupX architecture overview" src="assets/setupx_hero.jpg" />
-
 # SetupX
+<img width="1060" height="992" alt="image" src="https://github.com/user-attachments/assets/ff0524a2-12c0-4d18-971a-79cac72daa2b" />
 
 **Experience-Driven Automated Environment Configuration with LLM Agents**
 
